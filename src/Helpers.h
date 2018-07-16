@@ -38,4 +38,4 @@ uint16_t make_register(uint8_t high, uint8_t low) {
   return (low | (high << 8));
 }
 
-}  // ModbusTCPInternals
+}  // namespace ModbusTCPInternals
