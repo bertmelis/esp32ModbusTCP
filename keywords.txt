@@ -1,0 +1,26 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+ModbusTCP	KEYWORD1
+MB_ADU	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+request	KEYWORD2
+onAnswer	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+READ_COIL	LITERAL1
+READ_DISC_INPUT	LITERAL1
+READ_HOLD_REGISTER	LITERAL1
+READ_INPUT_REGISTER	LITERAL1
+WRITE_COIL	LITERAL1
+WRITE_HOLD_REGISTER	LITERAL1
+WRITE_MULT_COILS	LITERAL1
+WRITE_MULT_REGISTERS	LITERAL1

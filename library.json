@@ -1,0 +1,29 @@
+{
+  "name": "esp32Modbus",
+  "version": "0.0.1",
+  "keywords": "DHT, DTH11, DHT22, RMT, callback, Arduino, ESP32",
+  "description": "async Modbus client for ESP32",
+  "homepage": "https://github.com/bertmelis/esp32Modbus",
+  "license": "MIT",
+  "authors": {
+    "name": "Bert Melis",
+    "url": "https://github.com/bertmelis",
+    "maintainer": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bertmelis/esp32Modbus.git",
+    "branch": "master"
+  },
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32"
+  ],
+  "dependencies": [
+    {
+      "name": "AsyncTCP",
+      "version": "^1.0.1",
+      "platforms": "espressif32"
+    }
+  ]
+}
