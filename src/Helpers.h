@@ -22,6 +22,8 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#pragma once
+
 namespace ModbusTCPInternals {
 
 uint8_t low(uint16_t in) {
@@ -29,11 +31,11 @@ uint8_t low(uint16_t in) {
 }
 
 uint8_t high(uint16_t in) {
-  return ((in>>8) & 0xff);
+  return ((in >> 8) & 0xff);
 }
 
 uint16_t make_register(uint8_t high, uint8_t low) {
-  return (low | (high<<8));
+  return (low | (high << 8));
 }
 
 }  // ModbusTCPInternals
