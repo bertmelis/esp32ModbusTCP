@@ -15,6 +15,7 @@ env:
 install:
     - pip install -U platformio
     - pip install -U cpplint
+    - platformio lib -g install file://.
 
 script:
     - if [[ "$CPPLINT" ]]; then cpplint --repository=. --recursive --linelength=200 --filter=-build/include ./src; else platformio ci --lib="." --board=lolin32; fi
