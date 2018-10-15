@@ -1,4 +1,4 @@
-/* esp32Modbus
+/* esp32ModbusTCP
 
 Copyright 2018 Bert Melis
 
@@ -23,12 +23,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 #include <esp32-hal.h>
-#include "ModbusTCP.h"
+#include "esp32ModbusTCP.h"
 #include "Helpers.h"
 
 #include <Arduino.h>
 
-ModbusTCP::ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) :
+esp32ModbusTCP::esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) :
   _client(),
   _lastMillis(0),
   _state(IDLE),
@@ -48,11 +48,11 @@ ModbusTCP::ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) :
   _queue = xQueueCreate(NUMBER_QUEUE_ITEMS, sizeof(MB_ADU));
 }
 
-ModbusTCP::~ModbusTCP() {
+esp32ModbusTCP::~esp32ModbusTCP() {
   // nothing to be done (yet)?
 }
 
-uint16_t ModbusTCP::request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint8_t* val) {
+uint16_t esp32ModbusTCP::request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint8_t* val) {
   uint16_t id = _getNextPacketId();
   MB_ADU* adu = new MB_ADU {
     id,
@@ -68,28 +68,27 @@ uint16_t ModbusTCP::request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint
   return 0;
 }
 
-void ModbusTCP::onAnswer(ModbusOnData handler) {
+void esp32ModbusTCP::onAnswer(ModbusOnData handler) {
   _handler = handler;
 }
 
-void ModbusTCP::_onConnect(void* mb, AsyncClient* client) {
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onConnect(void* mb, AsyncClient* client) {
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   instance->_lastMillis = millis();
   instance->_send();
 }
 
-void ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
-  // ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
   // do nothing
 }
 
-void ModbusTCP::_onAck(void* mb, AsyncClient* client, size_t len, uint32_t time) {
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onAck(void* mb, AsyncClient* client, size_t len, uint32_t time) {
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   instance->_lastMillis = millis();
 }
 
-void ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   MB_ADU mb_adu;
   xQueueReceive(instance->_queue, static_cast<void*>(&mb_adu), 50);
   instance->_handler(false, mb_adu);
@@ -97,12 +96,12 @@ void ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
   instance->_state = IDLE;
 }
 
-void ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t len) {
+void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t len) {
   // It is assumed that a Modbus message completely fits in one TCP packet.
   // So when soon _onData is called, the complete processing can be done.
   // As we're communication in a sequential way, the message is corresponding to
   // the ADU at the queue front.
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   MB_ADU mb_adu;
   xQueueReceive(instance->_queue, static_cast<void*>(&mb_adu), 50);
   memcpy(instance->_RXBuff, data, len);
@@ -115,20 +114,20 @@ void ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t len) {
   instance->_send();  // check if there are other queued items
 }
 
-void ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   instance->_onError(mb, client, -3);  // -3: timeout?
 }
 
-void ModbusTCP::_onPoll(void* mb, AsyncClient* client) {
-  ModbusTCP* instance = static_cast<ModbusTCP*>(mb);
+void esp32ModbusTCP::_onPoll(void* mb, AsyncClient* client) {
+  esp32ModbusTCP* instance = static_cast<esp32ModbusTCP*>(mb);
   if (millis() - instance->_lastMillis > IDLE_CONNECTION_TIMEOUT &&
     (uxQueueMessagesWaiting(instance->_queue) == 0)) {
     instance->_client.close();
   }
 }
 
-void ModbusTCP::_send() {
+void esp32ModbusTCP::_send() {
   if (!_client.connected()) {
     _client.connect(_addr, _port);
     return;
@@ -136,24 +135,24 @@ void ModbusTCP::_send() {
   if (_state == IDLE && (uxQueueMessagesWaiting(_queue) != 0)) {
     MB_ADU mb_adu;
     xQueuePeek(_queue, &mb_adu, 50);
-    memset(&_TXBuff[0], ModbusTCPInternals::high(mb_adu.id), 1);
-    memset(&_TXBuff[1], ModbusTCPInternals::low(mb_adu.id), 1);
+    memset(&_TXBuff[0], esp32ModbusInternals::high(mb_adu.id), 1);
+    memset(&_TXBuff[1], esp32ModbusInternals::low(mb_adu.id), 1);
     memset(&_TXBuff[2], 0x00, 2);
     memset(&_TXBuff[4], 0x00, 1);
     memset(&_TXBuff[5], 0x06, 1);
     memset(&_TXBuff[6], _serverID, 1);
     memset(&_TXBuff[7], (uint8_t)mb_adu.functionCode, 1);
-    memset(&_TXBuff[8], ModbusTCPInternals::high(mb_adu.address), 1);
-    memset(&_TXBuff[9], ModbusTCPInternals::low(mb_adu.address), 1);
-    memset(&_TXBuff[10], ModbusTCPInternals::high(mb_adu.length), 1);
-    memset(&_TXBuff[11], ModbusTCPInternals::low(mb_adu.length), 1);
+    memset(&_TXBuff[8], esp32ModbusTCPInternals::high(mb_adu.address), 1);
+    memset(&_TXBuff[9], esp32ModbusTCPInternals::low(mb_adu.address), 1);
+    memset(&_TXBuff[10], esp32ModbusTCPInternals::high(mb_adu.length), 1);
+    memset(&_TXBuff[11], esp32ModbusTCPInternals::low(mb_adu.length), 1);
     _client.add(_TXBuff, 12);
     _client.send();
     _state = BUSY;
   }
 }
 
-uint16_t ModbusTCP::_getNextPacketId() {
+uint16_t esp32ModbusTCP::_getNextPacketId() {
   static uint16_t id = 0;
   return ++id;
 }

@@ -1,4 +1,4 @@
-/* esp32Modbus
+/* esp32ModbusTCP
 
 Copyright 2018 Bert Melis
 
@@ -63,7 +63,7 @@ struct MB_ADU {
 
 typedef std::function<void(bool, MB_ADU)> ModbusOnData;
 
-class ModbusTCP {
+class esp32ModbusTCP {
  public:
   ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port);
   ~ModbusTCP();
