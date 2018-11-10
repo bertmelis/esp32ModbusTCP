@@ -65,8 +65,8 @@ typedef std::function<void(bool, MB_ADU)> ModbusOnData;
 
 class esp32ModbusTCP {
  public:
-  ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port);
-  ~ModbusTCP();
+  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port);
+  ~esp32ModbusTCP();
   uint16_t request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint8_t* val = nullptr);
   void onAnswer(ModbusOnData handler);
 

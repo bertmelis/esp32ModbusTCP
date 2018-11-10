@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "keywords": "Arduino, ESP32, Modbus, TCP, async",
   "description": "async Modbus-TCP client for ESP32",
-  "homepage": "https://github.com/bertmelis/esp32Modbus",
+  "homepage": "https://github.com/bertmelis/esp32ModbusTCP",
   "license": "MIT",
   "authors": {
     "name": "Bert Melis",
