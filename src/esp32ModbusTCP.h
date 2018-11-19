@@ -29,71 +29,38 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 extern "C" {
 #include <FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/task.h>
 }
 
-#include <IPAddress.h>
-#include <AsyncTCP.h>
+#include <WiFiClient.h>
+//  #include <IPAddress.h>  // already included in WiFiClient.h
 
-#define IDLE_CONNECTION_TIMEOUT 1000  // time before connection wil be closed (milliseconds)
+#include "esp32ModbusTypeDefs.h"
+using namespace esp32Modbus;
+
+#define IDLE_CONNECTION_TIMEOUT 10000  // time before connection wil be closed (milliseconds)
 #define NUMBER_QUEUE_ITEMS 20         // size of queue (items)
-#define RX_BUFF_SIZE 300              // size of RX buffer (bytes)
-#define TX_BUFF_SIZE 300              // size of TX buffer (bytes)
-#define FLOOD_SERVER 0                // flood = don't wait for response before sending next request (currently not implemented)
-#define RX_TIMEOUT 2000               // rx timeout for TCP (milliseconds)
-#define ACK_TIMEOUT 2000              // ack timeout for TCP (milliseconds)
-
-enum MBFunctionCode : uint8_t {
-  READ_COIL = 0x01,
-  READ_DISC_INPUT = 0x02,
-  READ_HOLD_REGISTER = 0x03,
-  READ_INPUT_REGISTER = 0x04,
-  WRITE_COIL = 0x05,
-  WRITE_HOLD_REGISTER = 0x06,
-  WRITE_MULT_COILS = 0x0F,
-  WRITE_MULT_REGISTERS = 0x10
-};
-
-struct MB_ADU {
-  uint16_t id;
-  MBFunctionCode functionCode;
-  uint16_t address;
-  uint16_t length;
-  uint8_t* value;
-};
-
-typedef std::function<void(bool, MB_ADU)> ModbusOnData;
+#define RX_TIMEOUT 10                  // rx timeout for TCP (seconds)
+#define ACK_TIMEOUT 5000              // ack timeout for TCP (milliseconds)
 
 class esp32ModbusTCP {
  public:
-  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port);
+  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port = 502);
   ~esp32ModbusTCP();
-  uint16_t request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint8_t* val = nullptr);
-  void onAnswer(ModbusOnData handler);
+  void begin();
+  void onData(MBOnData handler);
+  void onError(MBOnError handler);
+  uint16_t readHoldingRegister(uint16_t address, uint16_t byteCount);
 
  private:
   // TCP
-  AsyncClient _client;
-  static void _onConnect(void* mb, AsyncClient* client);
-  static void _onDisconnect(void* mb, AsyncClient* client);
-  static void _onAck(void* mb, AsyncClient* client, size_t len, uint32_t time);
-  static void _onError(void* mb, AsyncClient* client, int8_t error);
-  static void _onData(void* mb, AsyncClient* client, void* data, size_t len);
-  static void _onTimeout(void* mb, AsyncClient* client, uint32_t time);
-  static void _onPoll(void* mb, AsyncClient* client);
-  uint32_t _lastMillis;
-
-  // Modbus
-  enum STATE {
-    IDLE,
-    BUSY
-  } _state;
+  WiFiClient _client;
+  static void _processQueue(esp32ModbusTCP* instance);
   const uint8_t _serverID;
   const IPAddress _addr;
   const uint16_t _port;
-  char _TXBuff[TX_BUFF_SIZE];
-  uint8_t _RXBuff[RX_BUFF_SIZE];
-  void _send();
-  uint16_t _getNextPacketId();
-  ModbusOnData _handler;
+  MBOnData _onDataHandler;
+  MBOnError _onErrorHandler;
   QueueHandle_t _queue;
+  TaskHandle_t _task;
 };
