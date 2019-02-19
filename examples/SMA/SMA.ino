@@ -24,9 +24,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 /*
-This example makes a request to my SMA solar inverter every 60 seconds
-The request is 2 registers (each 16 bit wide) at address 30053
-The returned device ID is 0x2468 = 9320
 
 The modbus server (= SMA Sunny Boy) is defined as
 ModbusTCP sunnyboy(3, {192, 168, 123, 123}, 502);
@@ -35,46 +32,75 @@ where:
 - {192, 168, 123, 13} = device IP address
 - 502 = port number
 
-The callback has a MB_ADU as argument. This is a structure containing
-- the message ID
-- the function code
-- the address
-- data length
-- value
-The bool argument indicates the modbus request was succesfull or not.
+All defined registers are holding registers, 2 word size (4 bytes)
+
 */
 
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ModbusTCP.h>
+#include <esp32ModbusTCP.h>
 
 const char* ssid = "xxxx";
 const char* pass = "xxxx";
 bool WiFiConnected = false;
 
-ModbusTCP sunnyboy(3, {192, 168, 123, 123}, 502);
+esp32ModbusTCP sunnyboy(3, {192, 168, 123, 123}, 502);
+enum smaType {
+  ENUM,   // enumeration
+  UFIX0,  // unsigned, no decimals
+  SFIX0,  // signed, no decimals
+};
+struct smaData {
+  const char* name;
+  uint16_t address;
+  uint16_t length;
+  smaType type;
+  uint16_t packetId;
+};
+smaData smaRegisters[] = {
+  "status", 30201, 2, ENUM, 0,
+  "connectionstatus", 30217, 2, ENUM, 0,
+  "totalpower", 30529, 2, UFIX0, 0,
+  "currentpower", 30775, 2, SFIX0, 0,
+  "currentdc1power", 30773, 2, SFIX0, 0,
+  "currentdc2power", 30961, 2, SFIX0, 0
+};
+uint8_t numberSmaRegisters = sizeof(smaRegisters) / sizeof(smaRegisters[0]);
+uint8_t currentSmaRegister = 0;
+
 
 void setup() {
     Serial.begin(115200);
-
     WiFi.disconnect(true);  // delete old config
-    WiFi.setAutoConnect(false);
-    WiFi.setAutoReconnect(false);
 
-    sunnyboy.onAnswer([](bool succes, MB_ADU mb_adu) {
-      Serial.print("Received:\n");
-      if (succes) {
-        uint32_t deviceType = 0;
-        uint8_t* value = mb_adu.value;
-        deviceType = value[0];
-        deviceType = deviceType << 8 | value[1];
-        deviceType = deviceType << 8 | value[2];
-        deviceType = deviceType << 8 | value[3];
-        Serial.printf("Sunny Boy device type: %i\n", deviceType);
-      } else {
-        Serial.println("modbus error");
+    sunnyboy.onData([](uint16_t packet, uint8_t slave, MBFunctionCode fc , uint8_t* data , uint16_t len) {
+      for (uint8_t i = 0; i < numberSmaRegisters; ++i) {
+        if (smaRegisters[i].packetId == packet) {
+          smaRegisters[i].packetId = 0;
+          switch (smaRegisters[i].type) {
+          case ENUM:
+          case UFIX0:
+            {
+            uint32_t value = 0;
+            value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
+            Serial.printf("%s: %u\n", smaRegisters[i].name, value);
+            break;
+            }
+          case SFIX0:
+            {
+            int32_t value = 0;
+            value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
+            Serial.printf("%s: %i\n", smaRegisters[i].name, value);
+            break;
+            }
+          }
+          return;
+        }
       }
+    });
+    sunnyboy.onError([](uint16_t packet, MBError e) {
+      Serial.printf("Error packet %u: %02x\n", packet, e);
     });
 
     delay(1000);
@@ -99,14 +125,16 @@ void setup() {
 
 void loop() {
   static uint32_t lastMillis = 0;
-  if ((millis() - lastMillis > 60000 &&
-      WiFiConnected) ||
-      lastMillis == 0) {
+  if ((millis() - lastMillis > 30000 && WiFiConnected)) {
     lastMillis = millis();
-    if (sunnyboy.request(READ_HOLD_REGISTER, 30053, 2)) {
-      Serial.print("Requesting data\n");
-    } else {
-      Serial.print("Request not succeeded\n");
+    Serial.print("reading registers\n");
+    for (uint8_t i = 0; i < numberSmaRegisters; ++i) {
+      uint16_t packetId = sunnyboy.readHoldingRegisters(smaRegisters[i].address, smaRegisters[i].length);
+      if (packetId > 0) {
+        smaRegisters[i].packetId = packetId;
+      } else {
+        Serial.print("reading error\n");
+      }
     }
   }
 }

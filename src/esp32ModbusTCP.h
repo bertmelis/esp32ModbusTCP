@@ -26,74 +26,61 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <functional>
 
-extern "C" {
-#include <FreeRTOS.h>
-#include <freertos/queue.h>
-}
-
-#include <IPAddress.h>
 #include <AsyncTCP.h>
+#include <IPAddress.h>
 
-#define IDLE_CONNECTION_TIMEOUT 1000  // time before connection wil be closed (milliseconds)
-#define NUMBER_QUEUE_ITEMS 20         // size of queue (items)
-#define RX_BUFF_SIZE 300              // size of RX buffer (bytes)
-#define TX_BUFF_SIZE 300              // size of TX buffer (bytes)
-#define FLOOD_SERVER 0                // flood = don't wait for response before sending next request (currently not implemented)
-#define RX_TIMEOUT 2000               // rx timeout for TCP (milliseconds)
-#define ACK_TIMEOUT 2000              // ack timeout for TCP (milliseconds)
+#include <esp32-hal-log.h>  // for millis()
+#include <freertos/queue.h>
 
-enum MBFunctionCode : uint8_t {
-  READ_COIL = 0x01,
-  READ_DISC_INPUT = 0x02,
-  READ_HOLD_REGISTER = 0x03,
-  READ_INPUT_REGISTER = 0x04,
-  WRITE_COIL = 0x05,
-  WRITE_HOLD_REGISTER = 0x06,
-  WRITE_MULT_COILS = 0x0F,
-  WRITE_MULT_REGISTERS = 0x10
-};
+#include "esp32ModbusTypeDefs.h"
+#include "ModbusMessage.h"
+using namespace esp32Modbus;  // NOLINT
 
-struct MB_ADU {
-  uint16_t id;
-  MBFunctionCode functionCode;
-  uint16_t address;
-  uint16_t length;
-  uint8_t* value;
-};
-
-typedef std::function<void(bool, MB_ADU)> ModbusOnData;
+#ifndef MB_NUMBER_QUEUE_ITEMS
+#define MB_NUMBER_QUEUE_ITEMS 20  // size of queue (items)
+#endif
+#ifndef MB_IDLE_DICONNECT_TIME
+#define MB_IDLE_DICONNECT_TIME 60000  // msecs before an idle conenction will be closed
+#endif
 
 class esp32ModbusTCP {
  public:
-  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port);
+  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port = 502);
   ~esp32ModbusTCP();
-  uint16_t request(MBFunctionCode fc, uint16_t addr, uint16_t len, uint8_t* val = nullptr);
-  void onAnswer(ModbusOnData handler);
+  void onData(MBTCPOnData handler);
+  void onError(MBOnError handler);
+  uint16_t readDiscreteInputs(uint16_t address, uint16_t numberInputs);
+  uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters);
+  uint16_t readInputRegisters(uint16_t address, uint16_t numberRegisters);
 
  private:
-  // TCP
-  AsyncClient _client;
-  static void _onConnect(void* mb, AsyncClient* client);
-  static void _onDisconnect(void* mb, AsyncClient* client);
-  static void _onAck(void* mb, AsyncClient* client, size_t len, uint32_t time);
-  static void _onError(void* mb, AsyncClient* client, int8_t error);
-  static void _onData(void* mb, AsyncClient* client, void* data, size_t len);
-  static void _onTimeout(void* mb, AsyncClient* client, uint32_t time);
-  static void _onPoll(void* mb, AsyncClient* client);
-  uint32_t _lastMillis;
+  uint16_t _addToQueue(ModbusRequest* request);
 
-  // Modbus
-  enum STATE {
+  AsyncClient _client;
+  void _connect();
+  void _disconnect(bool now = false);
+  static void _onConnected(void* mb, AsyncClient* client);
+  static void _onDisconnected(void* mb, AsyncClient* client);
+  static void _onError(void* mb, AsyncClient* client, int8_t error);
+  static void _onTimeout(void* mb, AsyncClient* client, uint32_t time);
+  static void _onData(void* mb, AsyncClient* client, void* data, size_t length);
+  static void _onPoll(void* mb, AsyncClient* client);
+  void _processQueue();
+  void _tryError(MBError error);
+  void _tryData(ModbusResponse* response);
+  void _next();
+  uint32_t _lastMillis;
+  enum {
+    NOTCONNECTED,
+    CONNECTING,
+    DISCONNECTING,
     IDLE,
-    BUSY
+    WAITING,
   } _state;
   const uint8_t _serverID;
   const IPAddress _addr;
   const uint16_t _port;
-  char _TXBuff[TX_BUFF_SIZE];
-  uint8_t _RXBuff[RX_BUFF_SIZE];
-  void _send();
-  uint16_t _getNextPacketId();
-  ModbusOnData _handler;
+  MBTCPOnData _onDataHandler;
+  MBOnError _onErrorHandler;
   QueueHandle_t _queue;
 };
