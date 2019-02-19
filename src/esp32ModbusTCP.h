@@ -34,7 +34,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32ModbusTypeDefs.h"
 #include "ModbusMessage.h"
-using namespace esp32Modbus;
+using namespace esp32Modbus;  // NOLINT
 
 #ifndef MB_NUMBER_QUEUE_ITEMS
 #define MB_NUMBER_QUEUE_ITEMS 20  // size of queue (items)

@@ -29,7 +29,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32ModbusTypeDefs.h"
 
-using namespace esp32Modbus;
+using namespace esp32Modbus;  //NOLINT
 
 class ModbusMessage {
  public:
@@ -48,7 +48,7 @@ class ModbusMessage {
 class ModbusResponse;  // forward declare for use in ModbusRequest
 
 class ModbusRequest : public ModbusMessage {
- friend class ModbusResponse;
+  friend class ModbusResponse;
 
  public:
   ~ModbusRequest();
