@@ -92,11 +92,34 @@ ModbusRequest::ModbusRequest(size_t length) :
   _functionCode(0),
   _address(0),
   _byteCount(0) {
-    // _buffer = std::make_unique<uin8_t[]>(mlength);
     _buffer = new uint8_t[length];
     _packetId = ++_lastPacketId;
     if (_lastPacketId == 0) _lastPacketId = 1;
   }
+
+ModbusRequest02::ModbusRequest02(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils) :
+  ModbusRequest(12) {
+  _slaveAddress = slaveAddress;
+  _functionCode = READ_DISCR_INPUT;
+  _address = address;
+  _byteCount = numberCoils / 8 + 1;
+  add(high(_packetId));
+  add(low(_packetId));
+  add(0x00);
+  add(0x00);
+  add(0x00);
+  add(0x06);
+  add(_slaveAddress);
+  add(_functionCode);
+  add(high(_address));
+  add(low(_address));
+  add(high(numberCoils));
+  add(low(numberCoils));
+}
+
+size_t ModbusRequest02::responseLength() {
+  return 9 + _byteCount;
+}
 
 ModbusRequest03::ModbusRequest03(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters) :
   ModbusRequest(12) {
@@ -125,7 +148,7 @@ size_t ModbusRequest03::responseLength() {
 ModbusRequest04::ModbusRequest04(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters) :
   ModbusRequest(12) {
   _slaveAddress = slaveAddress;
-  _functionCode = READ_HOLD_REGISTER;
+  _functionCode = READ_INPUT_REGISTER;
   _address = address;
   _byteCount = numberRegisters * 2;  // register is 2 bytes wide
   add(high(_packetId));
@@ -159,7 +182,8 @@ bool ModbusResponse::isComplete() {
 }
 
 bool ModbusResponse::isSucces() {
-  // TODO(bertmelis): add checks
+  if (_request->_packetId != make_word(_buffer[0], _buffer[1])) return false;
+  if (_request->_functionCode != _buffer[7]) return false;
   return true;
 }
 
@@ -167,7 +191,7 @@ MBError ModbusResponse::getError() const {
   return _error;
 }
 
-uint16_t ModbusResponse::getPacketId() {
+uint16_t ModbusResponse::getId() {
   return make_word(_buffer[0], _buffer[1]);
 }
 

@@ -48,10 +48,13 @@ class ModbusMessage {
 class ModbusResponse;  // forward declare for use in ModbusRequest
 
 class ModbusRequest : public ModbusMessage {
+ friend class ModbusResponse;
+
  public:
   ~ModbusRequest();
   uint16_t getId();
   virtual size_t responseLength() = 0;
+
  protected:
   explicit ModbusRequest(size_t length);
   static uint16_t _lastPacketId;
@@ -62,17 +65,24 @@ class ModbusRequest : public ModbusMessage {
   uint16_t _byteCount;
 };
 
+// read discrete coils
+class ModbusRequest02 : public ModbusRequest {
+ public:
+  explicit ModbusRequest02(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils);
+  size_t responseLength();
+};
+
 // read holding registers
 class ModbusRequest03 : public ModbusRequest {
  public:
-  explicit ModbusRequest03(uint8_t slaveAddress, uint16_t address, uint16_t registerCount);
+  explicit ModbusRequest03(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters);
   size_t responseLength();
 };
 
 // read input registers
 class ModbusRequest04 : public ModbusRequest {
  public:
-  explicit ModbusRequest04(uint8_t slaveAddress, uint16_t address, uint16_t registerCount);
+  explicit ModbusRequest04(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters);
   size_t responseLength();
 };
 
@@ -82,7 +92,7 @@ class ModbusResponse :public ModbusMessage {
   bool isComplete();
   bool isSucces();
   MBError getError() const;
-  uint16_t getPacketId();
+  uint16_t getId();
   uint8_t getSlaveAddress();
   MBFunctionCode getFunctionCode();
   uint8_t* getData();

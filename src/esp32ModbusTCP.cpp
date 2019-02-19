@@ -22,37 +22,41 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include <Arduino.h>
+
 #include <esp32-hal.h>
-#include <esp_log.h>
 #include "esp32ModbusTCP.h"
-#include "ModbusMessage.h"
 
 esp32ModbusTCP::esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) :
   _client(),
+  _lastMillis(0),
+  _state(NOTCONNECTED),
   _serverID(serverID),
   _addr(addr),
   _port(port),
   _onDataHandler(nullptr),
   _onErrorHandler(nullptr),
-  _queue(nullptr),
-  _task(nullptr) {
-  _queue = xQueueCreate(NUMBER_QUEUE_ITEMS, sizeof(ModbusRequest*));
-  if (_queue == NULL) {
-    abort();
+  _queue() {
+    _client.onConnect(_onConnected, this);
+    _client.onDisconnect(_onDisconnected, this);
+    _client.onError(_onError, this);
+    _client.onTimeout(_onTimeout, this);
+    _client.onPoll(_onPoll, this);
+    _client.onData(_onData, this);
+    _client.setNoDelay(true);
+    _client.setAckTimeout(5000);
+    _queue = xQueueCreate(MB_NUMBER_QUEUE_ITEMS, sizeof(ModbusRequest*));
   }
-}
 
 esp32ModbusTCP::~esp32ModbusTCP() {
-  // TODO(bertmelis): check destructor workings
-  vTaskDelete(_task);
+  ModbusRequest* req = nullptr;
+  while (xQueueReceive(_queue, &(req), (TickType_t)20)) {
+    delete req;
+  }
   vQueueDelete(_queue);
 }
 
-void esp32ModbusTCP::begin() {
-  xTaskCreate((TaskFunction_t)&_processQueue, "esp32ModbusTCP", 4096, this, 5, &_task);
-}
-
-void esp32ModbusTCP::onData(MBOnData handler) {
+void esp32ModbusTCP::onData(MBTCPOnData handler) {
   _onDataHandler = handler;
 }
 
@@ -60,100 +64,157 @@ void esp32ModbusTCP::onError(MBOnError handler) {
   _onErrorHandler = handler;
 }
 
-uint16_t esp32ModbusTCP::readHoldingRegister(uint16_t address, uint16_t byteCount) {
-  ModbusRequest* request = new ModbusRequest03(_serverID, address, byteCount);
-  if (xQueueSendToBack(_queue, reinterpret_cast<void*>(&request), 100) == pdPASS) {
-    return request->getId();
+uint16_t esp32ModbusTCP::readDiscreteInputs(uint16_t address, uint16_t numberInuts) {
+  ModbusRequest* request = new ModbusRequest02(_serverID, address, numberInuts);
+  return _addToQueue(request);
+}
+
+uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberRegisters) {
+  ModbusRequest* request = new ModbusRequest03(_serverID, address, numberRegisters);
+  return _addToQueue(request);
+}
+
+uint16_t esp32ModbusTCP::readInputRegisters(uint16_t address, uint16_t numberRegisters) {
+  ModbusRequest* request = new ModbusRequest04(_serverID, address, numberRegisters);
+  return _addToQueue(request);
+}
+
+uint16_t esp32ModbusTCP::_addToQueue(ModbusRequest* request) {
+  if (uxQueueSpacesAvailable(_queue) > 0) {
+    if (xQueueSend(_queue, &request, (TickType_t) 10) == pdPASS) {
+      _processQueue();
+      return request->getId();
+    }
   }
-  delete request;
   return 0;
 }
 
-void esp32ModbusTCP::_processQueue(esp32ModbusTCP* instance) {
-  while (true) {
-    ModbusRequest* request;
-    if (xQueueReceive(instance->_queue, &request, portMAX_DELAY) == pdTRUE) {
-      ESP_LOGD("request received id:%u\n", request->getId());
-      uint8_t rxBuffer[256] = {0};
-      size_t index = 0;
-      uint8_t state = 0;
-      uint32_t lastMillis = millis();
-      bool busy = true;
-      while (busy) {
-        if (millis() - lastMillis > 10 * 1000) {
-          ESP_LOGD("timeout\n");
-          if (instance->_onErrorHandler) instance->_onErrorHandler(TIMEOUT);
-          state = 0;
-          busy = false;
-          delete request;  // created in main task
-          break;
-        } else {
-          switch (state) {
-          case 0:  // idle
-            if (!instance->_client.connected()) {
-              ESP_LOGD("connecting\n");
-              instance->_client.connect(instance->_addr, instance->_port);
-              state = 1;
-            } else {
-              state = 2;
-            }
-            break;
-          case 1:  // connecting
-            if (!instance->_client.connected()) {
-              delay(1);
-              break;
-            }
-            ESP_LOGD("connected\n");
-            state = 2;
-            break;
-          case 2:  // connected
-            ESP_LOGD("0x");
-            {
-            uint8_t* msg = request->getMessage();
-            for (uint8_t i = 0; i < 8; ++i) {
-              ESP_LOGD("%02x", *(msg++));
-            }
-            ESP_LOGD("\n");
-            }
-            instance->_client.write(request->getMessage(), request->getSize());
-            instance->_client.flush();
-            state = 3;
-            break;
-          case 3:  // waiting for answer
-            while (instance->_client.available()) {
-              rxBuffer[index++] = instance->_client.read();
-              if (index == request->responseLength()) {
-                state = 4;
-              }
-            }
-          case 4:  // data received
-            ModbusResponse response(rxBuffer, index, request);
-            if (response.isComplete()) {
-              ESP_LOGD("msg complete\n");
-              if (response.isSucces()) {
-                ESP_LOGD("msg succes\n");
-                // onDataHandler
-                if (instance->_onDataHandler) instance->_onDataHandler(response.getPacketId(),
-                                                                       response.getSlaveAddress(),
-                                                                       response.getFunctionCode(),
-                                                                       response.getData(),
-                                                                       response.getByteCount());
-                state = 0;
-                busy = false;
-                delete request;  // created in main task
-              } else {
-                ESP_LOGD("msg fail\n");
-                if (instance->_onErrorHandler) instance->_onErrorHandler(response.getError());
-                state = 0;
-                busy = false;
-                delete request;  // created in main task
-              }
-            } else {
-              delay(1);
-            }
-          }
-        }
-      }
-    }
+/************************ TCP Handling *******************************/
+
+void esp32ModbusTCP::_connect() {
+  if (_state > NOTCONNECTED) {
+    log_i("already connected");
+    return;
   }
+  log_v("connecting");
+  _client.connect(_addr, _port);
+  _state = CONNECTING;
+}
+void esp32ModbusTCP::_disconnect(bool now) {
+  log_v("disconnecting");
+  _state = DISCONNECTING;
+  _client.close(now);
+}
+
+void esp32ModbusTCP::_onConnected(void* mb, AsyncClient* client) {
+  log_v("connected");
+  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
+  o->_state = IDLE;
+  o->_lastMillis = millis();
+  o->_processQueue();
+}
+
+void esp32ModbusTCP::_onDisconnected(void* mb, AsyncClient* client) {
+  log_v("disconnected");
+  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
+  o->_state = NOTCONNECTED;
+  o->_lastMillis = millis();
+  o->_processQueue();
+}
+
+void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
+  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
+  if (o->_state == IDLE || o->_state == DISCONNECTING) {
+    log_w("unexpected tcp error");
+    return;
+  }
+  o->_tryError(COMM_ERROR);
+}
+
+void esp32ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
+  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
+  if (o->_state < WAITING) {
+    log_w("unexpected tcp timeout");
+    return;
+  }
+  o->_tryError(TIMEOUT);
+}
+
+void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t length) {
+  /* It is assumed that a Modbus message completely fits in one TCP packet.
+     So when soon _onData is called, the complete processing can be done.
+     As we're communication in a sequential way, the message is corresponding to
+     the request at the queue front. */
+  log_v("data");
+  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
+  ModbusRequest* req = nullptr;
+  xQueuePeek(o->_queue, &req, (TickType_t)10);
+  ModbusResponse resp(reinterpret_cast<uint8_t*>(data), length, req);
+  if (resp.isComplete()) {
+    if (resp.isSucces()) {  // all OK
+      o->_tryData(&resp);
+    } else {  // message not correct
+      o->_tryError(resp.getError());
+    }
+  } else {  // message not complete
+    o->_tryError(COMM_ERROR);
+  }
+}
+
+void esp32ModbusTCP::_onPoll(void* mb, AsyncClient* client) {
+  esp32ModbusTCP* o = static_cast<esp32ModbusTCP*>(mb);
+  if (millis() - o->_lastMillis > MB_IDLE_DICONNECT_TIME) {
+    log_v("idle time disconnecting");
+    o->_disconnect();
+  }
+}
+
+void esp32ModbusTCP::_processQueue() {
+  if (_state == NOTCONNECTED && uxQueueMessagesWaiting(_queue) > 0) {
+    _connect();
+    return;
+  }
+  if (_state == CONNECTING ||
+      _state == WAITING ||
+      _state == DISCONNECTING ||
+      uxQueueSpacesAvailable(_queue) == 0 ||
+      !_client.canSend()) {
+    return;
+  }
+  ModbusRequest* req = nullptr;
+  if (xQueuePeek(_queue, &req, (TickType_t)20)) {
+    _state = WAITING;
+    log_v("send");
+    _client.add(reinterpret_cast<char*>(req->getMessage()), req->getSize());
+    _client.send();
+    _lastMillis = millis();
+  }
+}
+
+void esp32ModbusTCP::_tryError(MBError error) {
+  ModbusRequest* req = nullptr;
+  if (xQueuePeek(_queue, &req, (TickType_t)10)) {
+    if (_onErrorHandler) _onErrorHandler(req->getId(), error);
+  }
+  _next();
+}
+
+void esp32ModbusTCP::_tryData(ModbusResponse* response) {
+  if (_onDataHandler) _onDataHandler(
+      response->getId(),
+      response->getSlaveAddress(),
+      response->getFunctionCode(),
+      response->getData(),
+      response->getByteCount());
+  _next();
+}
+
+void esp32ModbusTCP::_next() {
+  ModbusRequest* req = nullptr;
+  if (xQueueReceive(_queue, &req, (TickType_t)20)) {
+    delete req;
+  }
+  _lastMillis = millis();
+  _state = IDLE;
+  _processQueue();
 }

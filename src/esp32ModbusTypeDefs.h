@@ -31,7 +31,7 @@ namespace esp32Modbus {
 
 enum MBFunctionCode : uint8_t {
   READ_COIL            = 0x01,
-  READ_DISC_INPUT      = 0x02,
+  READ_DISCR_INPUT     = 0x02,
   READ_HOLD_REGISTER   = 0x03,
   READ_INPUT_REGISTER  = 0x04,
   WRITE_COIL           = 0x05,
@@ -57,7 +57,13 @@ enum MBError : uint8_t {
   COMM_ERROR            = 0xE4  // general communication error
 };
 
-typedef std::function<void(uint16_t, uint8_t, MBFunctionCode, uint8_t*, uint16_t)> MBOnData;
-typedef std::function<void(MBError)> MBOnError;
+                        // packetId, slaveId, functionCode,   data,     length
+typedef std::function<void(uint16_t, uint8_t, MBFunctionCode, uint8_t*, uint16_t)> MBTCPOnData;
+
+                        // slaveId, functionCode,   data,     length
+typedef std::function<void(uint8_t, MBFunctionCode, uint8_t*, uint16_t)> MBRTUOnData;
+
+                        // packetId, error
+typedef std::function<void(uint16_t, MBError)> MBOnError;
 
 }  // namespace esp32Modbus
