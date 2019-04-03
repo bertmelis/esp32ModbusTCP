@@ -74,7 +74,7 @@ void setup() {
     Serial.begin(115200);
     WiFi.disconnect(true);  // delete old config
 
-    sunnyboy.onData([](uint16_t packet, uint8_t slave, esp32Modbus::MBFunctionCode fc , uint8_t* data , uint16_t len) {
+    sunnyboy.onData([](uint16_t packet, uint8_t slave, esp32Modbus::FunctionCode fc , uint8_t* data , uint16_t len) {
       for (uint8_t i = 0; i < numberSmaRegisters; ++i) {
         if (smaRegisters[i].packetId == packet) {
           smaRegisters[i].packetId = 0;
@@ -99,7 +99,7 @@ void setup() {
         }
       }
     });
-    sunnyboy.onError([](uint16_t packet, esp32Modbus::MBError e) {
+    sunnyboy.onError([](uint16_t packet, esp32Modbus::Error e) {
       Serial.printf("Error packet %u: %02x\n", packet, e);
     });
 
