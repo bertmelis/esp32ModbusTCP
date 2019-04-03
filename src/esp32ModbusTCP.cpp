@@ -86,6 +86,7 @@ uint16_t esp32ModbusTCP::_addToQueue(ModbusRequest* request) {
       return request->getId();
     }
   }
+  delete request;
   return 0;
 }
 
