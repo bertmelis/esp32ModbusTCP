@@ -45,41 +45,44 @@ esp32ModbusTCP::esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) 
     _client.onData(_onData, this);
     _client.setNoDelay(true);
     _client.setAckTimeout(5000);
-    _queue = xQueueCreate(MB_NUMBER_QUEUE_ITEMS, sizeof(ModbusRequest*));
+    _queue = xQueueCreate(MB_NUMBER_QUEUE_ITEMS, sizeof(esp32ModbusTCPInternals::ModbusRequest*));
   }
 
 esp32ModbusTCP::~esp32ModbusTCP() {
-  ModbusRequest* req = nullptr;
+  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
   while (xQueueReceive(_queue, &(req), (TickType_t)20)) {
     delete req;
   }
   vQueueDelete(_queue);
 }
 
-void esp32ModbusTCP::onData(MBTCPOnData handler) {
+void esp32ModbusTCP::onData(esp32Modbus::MBTCPOnData handler) {
   _onDataHandler = handler;
 }
 
-void esp32ModbusTCP::onError(MBOnError handler) {
+void esp32ModbusTCP::onError(esp32Modbus::MBTCPOnError handler) {
   _onErrorHandler = handler;
 }
 
-uint16_t esp32ModbusTCP::readDiscreteInputs(uint16_t address, uint16_t numberInuts) {
-  ModbusRequest* request = new ModbusRequest02(_serverID, address, numberInuts);
+uint16_t esp32ModbusTCP::readDiscreteInputs(uint16_t address, uint16_t numberInputs) {
+  esp32ModbusTCPInternals::ModbusRequest* request =
+    new esp32ModbusTCPInternals::ModbusRequest02(_serverID, address, numberInputs);
   return _addToQueue(request);
 }
 
 uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberRegisters) {
-  ModbusRequest* request = new ModbusRequest03(_serverID, address, numberRegisters);
+  esp32ModbusTCPInternals::ModbusRequest* request =
+    new esp32ModbusTCPInternals::ModbusRequest03(_serverID, address, numberRegisters);
   return _addToQueue(request);
 }
 
 uint16_t esp32ModbusTCP::readInputRegisters(uint16_t address, uint16_t numberRegisters) {
-  ModbusRequest* request = new ModbusRequest04(_serverID, address, numberRegisters);
+  esp32ModbusTCPInternals::ModbusRequest* request =
+    new esp32ModbusTCPInternals::ModbusRequest04(_serverID, address, numberRegisters);
   return _addToQueue(request);
 }
 
-uint16_t esp32ModbusTCP::_addToQueue(ModbusRequest* request) {
+uint16_t esp32ModbusTCP::_addToQueue(esp32ModbusTCPInternals::ModbusRequest* request) {
   if (uxQueueSpacesAvailable(_queue) > 0) {
     if (xQueueSend(_queue, &request, (TickType_t) 10) == pdPASS) {
       _processQueue();
@@ -129,7 +132,7 @@ void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
     log_w("unexpected tcp error");
     return;
   }
-  o->_tryError(COMM_ERROR);
+  o->_tryError(esp32Modbus::COMM_ERROR);
 }
 
 void esp32ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
@@ -138,7 +141,7 @@ void esp32ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
     log_w("unexpected tcp timeout");
     return;
   }
-  o->_tryError(TIMEOUT);
+  o->_tryError(esp32Modbus::TIMEOUT);
 }
 
 void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t length) {
@@ -148,9 +151,9 @@ void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t l
      the request at the queue front. */
   log_v("data");
   esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  ModbusRequest* req = nullptr;
+  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
   xQueuePeek(o->_queue, &req, (TickType_t)10);
-  ModbusResponse resp(reinterpret_cast<uint8_t*>(data), length, req);
+  esp32ModbusTCPInternals::ModbusResponse resp(reinterpret_cast<uint8_t*>(data), length, req);
   if (resp.isComplete()) {
     if (resp.isSucces()) {  // all OK
       o->_tryData(&resp);
@@ -158,7 +161,7 @@ void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t l
       o->_tryError(resp.getError());
     }
   } else {  // message not complete
-    o->_tryError(COMM_ERROR);
+    o->_tryError(esp32Modbus::COMM_ERROR);
   }
 }
 
@@ -182,7 +185,7 @@ void esp32ModbusTCP::_processQueue() {
       !_client.canSend()) {
     return;
   }
-  ModbusRequest* req = nullptr;
+  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
   if (xQueuePeek(_queue, &req, (TickType_t)20)) {
     _state = WAITING;
     log_v("send");
@@ -192,15 +195,15 @@ void esp32ModbusTCP::_processQueue() {
   }
 }
 
-void esp32ModbusTCP::_tryError(MBError error) {
-  ModbusRequest* req = nullptr;
+void esp32ModbusTCP::_tryError(esp32Modbus::Error error) {
+  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
   if (xQueuePeek(_queue, &req, (TickType_t)10)) {
     if (_onErrorHandler) _onErrorHandler(req->getId(), error);
   }
   _next();
 }
 
-void esp32ModbusTCP::_tryData(ModbusResponse* response) {
+void esp32ModbusTCP::_tryData(esp32ModbusTCPInternals::ModbusResponse* response) {
   if (_onDataHandler) _onDataHandler(
       response->getId(),
       response->getSlaveAddress(),
@@ -211,7 +214,7 @@ void esp32ModbusTCP::_tryData(ModbusResponse* response) {
 }
 
 void esp32ModbusTCP::_next() {
-  ModbusRequest* req = nullptr;
+  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
   if (xQueueReceive(_queue, &req, (TickType_t)20)) {
     delete req;
   }

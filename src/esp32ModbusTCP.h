@@ -22,7 +22,8 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#pragma once
+#ifndef esp32ModbusTCP_h
+#define esp32ModbusTCP_h
 
 #include <functional>
 
@@ -34,7 +35,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32ModbusTypeDefs.h"
 #include "ModbusMessage.h"
-using namespace esp32Modbus;  // NOLINT
 
 #ifndef MB_NUMBER_QUEUE_ITEMS
 #define MB_NUMBER_QUEUE_ITEMS 20  // size of queue (items)
@@ -47,14 +47,14 @@ class esp32ModbusTCP {
  public:
   esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port = 502);
   ~esp32ModbusTCP();
-  void onData(MBTCPOnData handler);
-  void onError(MBOnError handler);
+  void onData(esp32Modbus::MBTCPOnData handler);
+  void onError(esp32Modbus::MBTCPOnError handler);
   uint16_t readDiscreteInputs(uint16_t address, uint16_t numberInputs);
   uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters);
   uint16_t readInputRegisters(uint16_t address, uint16_t numberRegisters);
 
  private:
-  uint16_t _addToQueue(ModbusRequest* request);
+  uint16_t _addToQueue(esp32ModbusTCPInternals::ModbusRequest* request);
 
   AsyncClient _client;
   void _connect();
@@ -66,8 +66,8 @@ class esp32ModbusTCP {
   static void _onData(void* mb, AsyncClient* client, void* data, size_t length);
   static void _onPoll(void* mb, AsyncClient* client);
   void _processQueue();
-  void _tryError(MBError error);
-  void _tryData(ModbusResponse* response);
+  void _tryError(esp32Modbus::Error error);
+  void _tryData(esp32ModbusTCPInternals::ModbusResponse* response);
   void _next();
   uint32_t _lastMillis;
   enum {
@@ -80,7 +80,9 @@ class esp32ModbusTCP {
   const uint8_t _serverID;
   const IPAddress _addr;
   const uint16_t _port;
-  MBTCPOnData _onDataHandler;
-  MBOnError _onErrorHandler;
+  esp32Modbus::MBTCPOnData _onDataHandler;
+  esp32Modbus::MBTCPOnError _onErrorHandler;
   QueueHandle_t _queue;
 };
+
+#endif
