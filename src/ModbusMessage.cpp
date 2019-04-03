@@ -25,6 +25,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ModbusMessage.h"
 
+namespace esp32ModbusTCPInternals {
+
 uint8_t low(uint16_t in) {
   return (in & 0xff);
 }
@@ -100,7 +102,7 @@ ModbusRequest::ModbusRequest(size_t length) :
 ModbusRequest02::ModbusRequest02(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils) :
   ModbusRequest(12) {
   _slaveAddress = slaveAddress;
-  _functionCode = READ_DISCR_INPUT;
+  _functionCode = esp32Modbus::READ_DISCR_INPUT;
   _address = address;
   _byteCount = numberCoils / 8 + 1;
   add(high(_packetId));
@@ -124,7 +126,7 @@ size_t ModbusRequest02::responseLength() {
 ModbusRequest03::ModbusRequest03(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters) :
   ModbusRequest(12) {
   _slaveAddress = slaveAddress;
-  _functionCode = READ_HOLD_REGISTER;
+  _functionCode = esp32Modbus::READ_HOLD_REGISTER;
   _address = address;
   _byteCount = numberRegisters * 2;  // register is 2 bytes wide
   add(high(_packetId));
@@ -148,7 +150,7 @@ size_t ModbusRequest03::responseLength() {
 ModbusRequest04::ModbusRequest04(uint8_t slaveAddress, uint16_t address, uint16_t numberRegisters) :
   ModbusRequest(12) {
   _slaveAddress = slaveAddress;
-  _functionCode = READ_INPUT_REGISTER;
+  _functionCode = esp32Modbus::READ_INPUT_REGISTER;
   _address = address;
   _byteCount = numberRegisters * 2;  // register is 2 bytes wide
   add(high(_packetId));
@@ -172,7 +174,7 @@ size_t ModbusRequest04::responseLength() {
 ModbusResponse::ModbusResponse(uint8_t* data, size_t length, ModbusRequest* request) :
   ModbusMessage(data, length),
   _request(request),
-  _error(SUCCES) {
+  _error(esp32Modbus::SUCCES) {
     _index = _length;
   }
 
@@ -187,7 +189,7 @@ bool ModbusResponse::isSucces() {
   return true;
 }
 
-MBError ModbusResponse::getError() const {
+esp32Modbus::Error ModbusResponse::getError() const {
   return _error;
 }
 
@@ -199,8 +201,8 @@ uint8_t ModbusResponse::getSlaveAddress() {
   return _buffer[6];
 }
 
-MBFunctionCode ModbusResponse::getFunctionCode() {
-  return static_cast<MBFunctionCode>(_buffer[7]);
+esp32Modbus::FunctionCode ModbusResponse::getFunctionCode() {
+  return static_cast<esp32Modbus::FunctionCode>(_buffer[7]);
 }
 
 uint8_t* ModbusResponse::getData() {
@@ -210,3 +212,5 @@ uint8_t* ModbusResponse::getData() {
 size_t ModbusResponse::getByteCount() {
   return _buffer[8];
 }
+
+}  // namespace esp32ModbusTCPInternals

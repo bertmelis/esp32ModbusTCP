@@ -22,14 +22,15 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#pragma once
+#ifndef esp32Modbus_esp32ModbusTypeDefs_h
+#define esp32Modbus_esp32ModbusTypeDefs_h
 
 #include <stdint.h>  // for uint*_t
 #include <functional>  // for std::function
 
 namespace esp32Modbus {
 
-enum MBFunctionCode : uint8_t {
+enum FunctionCode : uint8_t {
   READ_COIL            = 0x01,
   READ_DISCR_INPUT     = 0x02,
   READ_HOLD_REGISTER   = 0x03,
@@ -40,7 +41,7 @@ enum MBFunctionCode : uint8_t {
   WRITE_MULT_REGISTERS = 0x10
 };
 
-enum MBError : uint8_t {
+enum Error : uint8_t {
   SUCCES                = 0x00,
   ILLEGAL_FUNCTION      = 0x01,
   ILLEGAL_DATA_ADDRESS  = 0x02,
@@ -57,13 +58,11 @@ enum MBError : uint8_t {
   COMM_ERROR            = 0xE4  // general communication error
 };
 
-                        // packetId, slaveId, functionCode,   data,     length
-typedef std::function<void(uint16_t, uint8_t, MBFunctionCode, uint8_t*, uint16_t)> MBTCPOnData;
-
-                        // slaveId, functionCode,   data,     length
-typedef std::function<void(uint8_t, MBFunctionCode, uint8_t*, uint16_t)> MBRTUOnData;
-
-                        // packetId, error
-typedef std::function<void(uint16_t, MBError)> MBOnError;
+typedef std::function<void(uint16_t, uint8_t, esp32Modbus::FunctionCode, uint8_t*, uint16_t)> MBTCPOnData;
+typedef std::function<void(uint8_t, esp32Modbus::FunctionCode, uint8_t*, uint16_t)> MBRTUOnData;
+typedef std::function<void(uint16_t, esp32Modbus::Error)> MBTCPOnError;
+typedef std::function<void(esp32Modbus::Error)> MBRTUOnError;
 
 }  // namespace esp32Modbus
+
+#endif
