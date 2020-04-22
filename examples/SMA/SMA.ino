@@ -56,51 +56,47 @@ struct smaData {
   uint16_t address;
   uint16_t length;
   smaType type;
-  uint16_t packetId;
 };
 smaData smaRegisters[] = {
-  "status", 30201, 2, ENUM, 0,
-  "connectionstatus", 30217, 2, ENUM, 0,
-  "totalpower", 30529, 2, UFIX0, 0,
-  "currentpower", 30775, 2, SFIX0, 0,
-  "currentdc1power", 30773, 2, SFIX0, 0,
-  "currentdc2power", 30961, 2, SFIX0, 0
+  "status", 30201, 2, ENUM,
+  "connectionstatus", 30217, 2, ENUM,
+  "totalpower", 30529, 2, UFIX0,
+  "currentpower", 30775, 2, SFIX0,
+  "currentdc1power", 30773, 2, SFIX0,
+  "currentdc2power", 30961, 2, SFIX0
 };
 uint8_t numberSmaRegisters = sizeof(smaRegisters) / sizeof(smaRegisters[0]);
-uint8_t currentSmaRegister = 0;
 
 
 void setup() {
     Serial.begin(115200);
     WiFi.disconnect(true);  // delete old config
 
-    sunnyboy.onData([](uint16_t packet, uint8_t slave, esp32Modbus::FunctionCode fc , uint8_t* data , uint16_t len) {
-      for (uint8_t i = 0; i < numberSmaRegisters; ++i) {
-        if (smaRegisters[i].packetId == packet) {
-          smaRegisters[i].packetId = 0;
-          switch (smaRegisters[i].type) {
-          case ENUM:
-          case UFIX0:
-            {
-            uint32_t value = 0;
-            value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
-            Serial.printf("%s: %u\n", smaRegisters[i].name, value);
-            break;
-            }
-          case SFIX0:
-            {
-            int32_t value = 0;
-            value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
-            Serial.printf("%s: %i\n", smaRegisters[i].name, value);
-            break;
-            }
-          }
-          return;
+    sunnyboy.onData([](uint16_t packet, uint8_t slave, esp32Modbus::FunctionCode fc , uint8_t* data , uint16_t len, void* arg) {
+      smaData* a = reinterpret_cast<smaData*>(arg);
+
+      switch (a->type) {
+      case ENUM:
+      case UFIX0:
+        {
+        uint32_t value = 0;
+        value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
+        Serial.printf("%s: %u\n", a->name, value);
+        break;
+        }
+      case SFIX0:
+        {
+        int32_t value = 0;
+        value = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | (data[3]);
+        Serial.printf("%s: %i\n", a->name, value);
+        break;
         }
       }
+      return;
     });
-    sunnyboy.onError([](uint16_t packet, esp32Modbus::Error e) {
-      Serial.printf("Error packet %u: %02x\n", packet, e);
+    sunnyboy.onError([](uint16_t packet, esp32Modbus::Error e, void* arg) {
+      smaData* a = reinterpret_cast<smaData*>(arg);
+      Serial.printf("Error packet %s (%u): %02x\n", a->name, packet, e);
     });
 
     delay(1000);
@@ -113,7 +109,7 @@ void setup() {
     WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
         Serial.print("WiFi lost connection. Reason: ");
         Serial.println(info.disconnected.reason);
-        WiFi.disconnect();
+        WiFi.begin(ssid, pass);
         WiFiConnected = false;
     }, WiFiEvent_t::SYSTEM_EVENT_STA_DISCONNECTED);
 
@@ -127,14 +123,15 @@ void loop() {
   static uint32_t lastMillis = 0;
   if ((millis() - lastMillis > 30000 && WiFiConnected)) {
     lastMillis = millis();
-    Serial.print("reading registers\n");
+    Serial.print("reading registers:\n");
     for (uint8_t i = 0; i < numberSmaRegisters; ++i) {
-      uint16_t packetId = sunnyboy.readHoldingRegisters(smaRegisters[i].address, smaRegisters[i].length);
-      if (packetId > 0) {
-        smaRegisters[i].packetId = packetId;
+
+      if (sunnyboy.readHoldingRegisters(smaRegisters[i].address, smaRegisters[i].length, &(smaRegisters[i])) > 0) {
+        Serial.printf("  requested %s\n", smaRegisters[i].name);
       } else {
-        Serial.print("reading error\n");
+        Serial.printf("  error request %s\n", smaRegisters[i].name);
       }
+
     }
   }
 }

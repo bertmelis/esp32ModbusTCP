@@ -1,6 +1,6 @@
 /* esp32ModbusTCP
 
-Copyright 2018 Bert Melis
+Copyright 2020 Bert Melis
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
@@ -22,203 +22,262 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include <Arduino.h>
-
-#include <esp32-hal.h>
 #include "esp32ModbusTCP.h"
 
-esp32ModbusTCP::esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port) :
+esp32ModbusTCP::esp32ModbusTCP(const uint8_t serverId, const IPAddress serverIP, const uint16_t port):
   _client(),
-  _lastMillis(0),
-  _state(NOTCONNECTED),
-  _serverID(serverID),
-  _addr(addr),
+  _serverID(serverId),
+  _serverIP(serverIP),
   _port(port),
+  _state(DISCONNECTED),
+  _lastMillis(0),
+  _semaphore(nullptr),
+  _toSend(),
+  _toReceive(),
   _onDataHandler(nullptr),
   _onErrorHandler(nullptr),
-  _queue() {
-    _client.onConnect(_onConnected, this);
-    _client.onDisconnect(_onDisconnected, this);
+  _currentResponse(nullptr) {
+    _client.onConnect(_onConnect, this);
+    _client.onDisconnect(_onDisconnect, this);
     _client.onError(_onError, this);
     _client.onTimeout(_onTimeout, this);
     _client.onPoll(_onPoll, this);
     _client.onData(_onData, this);
     _client.setNoDelay(true);
     _client.setAckTimeout(5000);
-    _queue = xQueueCreate(MB_NUMBER_QUEUE_ITEMS, sizeof(esp32ModbusTCPInternals::ModbusRequest*));
-  }
-
+    _client.setRxTimeout(5000);
+    _semaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(_semaphore);
+}
 esp32ModbusTCP::~esp32ModbusTCP() {
-  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
-  while (xQueueReceive(_queue, &(req), (TickType_t)20)) {
-    delete req;
-  }
-  vQueueDelete(_queue);
+  _toSend.clear();
+  _toReceive.clear();
+  vSemaphoreDelete(_semaphore);
 }
 
-void esp32ModbusTCP::onData(esp32Modbus::MBTCPOnData handler) {
+void esp32ModbusTCP::onData(OnDataHandler handler) {
   _onDataHandler = handler;
 }
 
-void esp32ModbusTCP::onError(esp32Modbus::MBTCPOnError handler) {
+void esp32ModbusTCP::onError(OnErrorHandler handler) {
   _onErrorHandler = handler;
 }
 
-uint16_t esp32ModbusTCP::readDiscreteInputs(uint16_t address, uint16_t numberInputs) {
-  esp32ModbusTCPInternals::ModbusRequest* request =
-    new esp32ModbusTCPInternals::ModbusRequest02(_serverID, address, numberInputs);
-  return _addToQueue(request);
-}
+bool esp32ModbusTCP::connect() {
+  if (_state != DISCONNECTED) return false;
 
-uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberRegisters) {
-  esp32ModbusTCPInternals::ModbusRequest* request =
-    new esp32ModbusTCPInternals::ModbusRequest03(_serverID, address, numberRegisters);
-  return _addToQueue(request);
-}
-
-uint16_t esp32ModbusTCP::readInputRegisters(uint16_t address, uint16_t numberRegisters) {
-  esp32ModbusTCPInternals::ModbusRequest* request =
-    new esp32ModbusTCPInternals::ModbusRequest04(_serverID, address, numberRegisters);
-  return _addToQueue(request);
-}
-
-uint16_t esp32ModbusTCP::_addToQueue(esp32ModbusTCPInternals::ModbusRequest* request) {
-  if (uxQueueSpacesAvailable(_queue) > 0) {
-    if (xQueueSend(_queue, &request, (TickType_t) 10) == pdPASS) {
-      _processQueue();
-      return request->getId();
-    }
+  log_v("connecting");
+  if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+    _state = CONNECTING;
+    _client.connect(_serverIP, _port);
+    xSemaphoreGive(_semaphore);
+    return true;
+  } else {
+    log_e("couldn't obtain semaphore");
+    return false;
   }
-  delete request;
+}
+
+bool esp32ModbusTCP::disconnect(bool force) {
+  log_v("disconnecting");
+  if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+    _state = DISCONNECTING;
+    xSemaphoreGive(_semaphore);
+    _clearQueue(esp32Modbus::COMM_ERROR);
+    _client.close(force);
+    return true;
+  } else {
+    log_e("couldn't obtain semaphore");
+    return false;
+  }
+}
+
+uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberRegisters, void* arg) {
+  ModbusRequest* request = new ModbusRequest03(_serverID, address, numberRegisters);
+  if (request) return _addToQueue(request, arg);
   return 0;
 }
 
-/************************ TCP Handling *******************************/
+uint16_t esp32ModbusTCP::writeHoldingRegister(uint16_t address, uint16_t data, void* arg) {
+  ModbusRequest* request = new ModbusRequest06(_serverID, address, data);
+  if (request) return _addToQueue(request, arg);
+  return 0;
+}
 
-void esp32ModbusTCP::_connect() {
-  if (_state > NOTCONNECTED) {
-    log_i("already connected");
+uint16_t esp32ModbusTCP::_addToQueue(ModbusRequest* request, void* arg) {
+  if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+    if (_toSend.size() == MODBUS_MAX_QUEUE_SIZE) {
+      delete request;
+      xSemaphoreGive(_semaphore);
+      return 0;
+    }
+    _toSend.emplace_back(request, nullptr, arg);
+    xSemaphoreGive(_semaphore);
+    if (_state == DISCONNECTED) {
+      connect();
+    }
+    return request->getId();
+  } else {
+    log_e("couldn't obtain semaphore");
+    return 0;
+  }
+}
+
+void esp32ModbusTCP::_tryToSend() {
+  if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+    if (_state == CONNECTED) {
+      while (!_toSend.empty()) {
+        ModbusAction& a = _toSend.front();
+        if (_client.space() >= a.request->getSize()) {
+          log_v("send id %d", a.request->getId());
+          _client.add(reinterpret_cast<const char*>(a.request->getMessage()), a.request->getSize());
+          _client.send();
+          _toReceive.splice(_toReceive.end(), _toSend, _toSend.begin());
+          _lastMillis = millis();
+          delay(1);  // ensure we don't starve cpu
+        } else {
+          // stop looping
+          break;
+        }
+      }
+    }
+    xSemaphoreGive(_semaphore);
+  } else {
+    log_e("couldn't obtain semaphore");
     return;
   }
-  log_v("connecting");
-  _client.connect(_addr, _port);
-  _state = CONNECTING;
-}
-void esp32ModbusTCP::_disconnect(bool now) {
-  log_v("disconnecting");
-  _state = DISCONNECTING;
-  _client.close(now);
 }
 
-void esp32ModbusTCP::_onConnected(void* mb, AsyncClient* client) {
+void esp32ModbusTCP::_clearQueue(esp32Modbus::Error error) {
+  if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+    while(!_toSend.empty()) {
+      _tryError(_toSend.front().request->getId(), error, _toSend.front().arg);
+      _toSend.pop_front();
+    }
+    while(!_toReceive.empty()) {
+      _tryError(_toSend.front().request->getId(), error, _toReceive.front().arg);
+      _toReceive.pop_front();
+    }
+    xSemaphoreGive(_semaphore);
+  } else {
+    log_e("couldn't obtain semaphore");
+    return;
+  }
+}
+
+void esp32ModbusTCP::_tryError(uint16_t packetId, esp32Modbus::Error error, void* arg) {
+  if (_onErrorHandler) _onErrorHandler(packetId, error, arg);
+}
+
+void esp32ModbusTCP::_tryData(ModbusResponse& response, void* arg) {
+  if (_onDataHandler) {
+    _onDataHandler(response.getId(),
+                   response.getSlaveAddress(),
+                   response.getFunctionCode(),
+                   response.getData(),
+                   response.getDataLength(),
+                   arg);
+  }
+}
+
+void esp32ModbusTCP::_onConnect(void* mb, AsyncClient* client) {
   log_v("connected");
-  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  o->_state = IDLE;
-  o->_lastMillis = millis();
-  o->_processQueue();
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  if (xSemaphoreTake(c->_semaphore, 1000) == pdTRUE) {
+    c->_state = CONNECTED;
+    xSemaphoreGive(c->_semaphore);
+  } else {
+    log_e("couldn't obtain semaphore");
+    return;
+  }
+
 }
 
-void esp32ModbusTCP::_onDisconnected(void* mb, AsyncClient* client) {
+void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
   log_v("disconnected");
-  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  o->_state = NOTCONNECTED;
-  o->_lastMillis = millis();
-  o->_processQueue();
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  if (xSemaphoreTake(c->_semaphore, 1000) == pdTRUE) {
+    c->_state = DISCONNECTED;
+    if (!c->_toSend.empty() || !c->_toReceive.empty()) {
+      xSemaphoreGive(c->_semaphore);
+      c->connect();
+    }
+    xSemaphoreGive(c->_semaphore);
+  } else {
+    log_e("couldn't obtain semaphore");
+    return;
+  }
+
 }
 
 void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
-  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  if (o->_state == IDLE || o->_state == DISCONNECTING) {
-    log_w("unexpected tcp error");
-    return;
-  }
-  o->_tryError(esp32Modbus::COMM_ERROR);
+  log_v("TCP error");
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  // Clearing queue to reset
+  // _onDisconnected will be called afterwards
+  c->_clearQueue(esp32Modbus::COMM_ERROR);
+  c->disconnect();
 }
 
 void esp32ModbusTCP::_onTimeout(void* mb, AsyncClient* client, uint32_t time) {
-  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  if (o->_state < WAITING) {
-    log_w("unexpected tcp timeout");
-    return;
-  }
-  o->_tryError(esp32Modbus::TIMEOUT);
+  // clear queue and disconnect
+  log_v("TCP timeout");
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  c->_clearQueue(esp32Modbus::TIMEOUT);
+  c->disconnect();
 }
 
 void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t length) {
-  /* It is assumed that a Modbus message completely fits in one TCP packet.
-     So when soon _onData is called, the complete processing can be done.
-     As we're communication in a sequential way, the message is corresponding to
-     the request at the queue front. */
-  log_v("data");
-  esp32ModbusTCP* o = reinterpret_cast<esp32ModbusTCP*>(mb);
-  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
-  xQueuePeek(o->_queue, &req, (TickType_t)10);
-  esp32ModbusTCPInternals::ModbusResponse resp(reinterpret_cast<uint8_t*>(data), length, req);
-  if (resp.isComplete()) {
-    if (resp.isSucces()) {  // all OK
-      o->_tryData(&resp);
-    } else {  // message not correct
-      o->_tryError(resp.getError());
-    }
-  } else {  // message not complete
-    o->_tryError(esp32Modbus::COMM_ERROR);
+  log_v("data: len %d", length);
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  uint8_t* d = reinterpret_cast<uint8_t*>(data);
+  size_t i = 0;
+  if (xSemaphoreTake(c->_semaphore, 1000) != pdPASS) {
+    log_e("couldn't obtain semaphore");
+    return;
   }
+
+  do {
+    if (c->_currentResponse == nullptr) {
+      if (length > 7) {  // create new Response object, need 7 bytes for MBAP header
+        uint16_t packetLen = d[4] << 8 | d[5];
+        c->_currentResponse = new ModbusResponse(packetLen);
+      }
+    } else if (c->_currentResponse) {
+      c->_currentResponse->add(d[i++]);
+
+      if (c->_currentResponse->isValid() && c->_currentResponse->isComplete()) {
+        std::list<ModbusAction>::iterator it;
+        for (it = c->_toReceive.begin(); it != (c->_toReceive.end()); ++it) {
+          if (c->_currentResponse->match(*(it->request))) {
+            if (c->_currentResponse->isSuccess()) {
+              c->_tryData(*(c->_currentResponse), it->arg);
+            } else {
+              c->_tryError(c->_currentResponse->getId(), c->_currentResponse->getError(), it->arg);
+            }
+            delete it->request;
+            delete it->response;
+            c->_toReceive.erase(it);
+            c->_currentResponse = nullptr;
+            break;
+          }
+        }
+      }
+    } else {
+      log_e("Invalid packet received");
+      _onError(c, nullptr, 0);
+    }
+  } while (i < length);
+
+  xSemaphoreGive(c->_semaphore);
 }
 
 void esp32ModbusTCP::_onPoll(void* mb, AsyncClient* client) {
-  esp32ModbusTCP* o = static_cast<esp32ModbusTCP*>(mb);
-  if (millis() - o->_lastMillis > MB_IDLE_DICONNECT_TIME) {
-    log_v("idle time disconnecting");
-    o->_disconnect();
+  esp32ModbusTCP* c = reinterpret_cast<esp32ModbusTCP*>(mb);
+  // try to send outing messages
+  if (!(c->_toSend.empty())) {
+    c->_tryToSend();
+  } else if (c->_toReceive.empty() && millis() - c->_lastMillis > MODBUS_CONNECTION_MAX_IDLE_TIME) {
+    c->disconnect();
   }
-}
-
-void esp32ModbusTCP::_processQueue() {
-  if (_state == NOTCONNECTED && uxQueueMessagesWaiting(_queue) > 0) {
-    _connect();
-    return;
-  }
-  if (_state == CONNECTING ||
-      _state == WAITING ||
-      _state == DISCONNECTING ||
-      uxQueueSpacesAvailable(_queue) == 0 ||
-      !_client.canSend()) {
-    return;
-  }
-  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
-  if (xQueuePeek(_queue, &req, (TickType_t)20)) {
-    _state = WAITING;
-    log_v("send");
-    _client.add(reinterpret_cast<char*>(req->getMessage()), req->getSize());
-    _client.send();
-    _lastMillis = millis();
-  }
-}
-
-void esp32ModbusTCP::_tryError(esp32Modbus::Error error) {
-  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
-  if (xQueuePeek(_queue, &req, (TickType_t)10)) {
-    if (_onErrorHandler) _onErrorHandler(req->getId(), error);
-  }
-  _next();
-}
-
-void esp32ModbusTCP::_tryData(esp32ModbusTCPInternals::ModbusResponse* response) {
-  if (_onDataHandler) _onDataHandler(
-      response->getId(),
-      response->getSlaveAddress(),
-      response->getFunctionCode(),
-      response->getData(),
-      response->getByteCount());
-  _next();
-}
-
-void esp32ModbusTCP::_next() {
-  esp32ModbusTCPInternals::ModbusRequest* req = nullptr;
-  if (xQueueReceive(_queue, &req, (TickType_t)20)) {
-    delete req;
-  }
-  _lastMillis = millis();
-  _state = IDLE;
-  _processQueue();
 }

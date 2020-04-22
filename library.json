@@ -1,6 +1,6 @@
 {
   "name": "esp32ModbusTCP",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "keywords": "Arduino, ESP32, Modbus, TCP, async",
   "description": "async Modbus-TCP client for ESP32",
   "homepage": "https://github.com/bertmelis/esp32ModbusTCP",

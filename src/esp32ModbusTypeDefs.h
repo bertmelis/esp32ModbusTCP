@@ -1,6 +1,6 @@
 /* esp32ModbusTypedefs
 
-Copyright 2018 Bert Melis
+Copyright 2020 Bert Melis
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
@@ -22,8 +22,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#ifndef esp32Modbus_esp32ModbusTypeDefs_h
-#define esp32Modbus_esp32ModbusTypeDefs_h
+#pragma once
 
 #include <stdint.h>  // for uint*_t
 #include <functional>  // for std::function
@@ -55,14 +54,7 @@ enum Error : uint8_t {
   INVALID_SLAVE         = 0xE1,
   INVALID_FUNCTION      = 0xE2,
   CRC_ERROR             = 0xE3,  // only for Modbus-RTU
-  COMM_ERROR            = 0xE4  // general communication error
+  COMM_ERROR            = 0xE4   // general communication error
 };
 
-typedef std::function<void(uint16_t, uint8_t, esp32Modbus::FunctionCode, uint8_t*, uint16_t)> MBTCPOnData;
-typedef std::function<void(uint8_t, esp32Modbus::FunctionCode, uint8_t*, uint16_t)> MBRTUOnData;
-typedef std::function<void(uint16_t, esp32Modbus::Error)> MBTCPOnError;
-typedef std::function<void(esp32Modbus::Error)> MBRTUOnError;
-
 }  // namespace esp32Modbus
-
-#endif

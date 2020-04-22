@@ -1,6 +1,6 @@
 /* esp32ModbusTCP
 
-Copyright 2018 Bert Melis
+Copyright 2020 Bert Melis
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
@@ -22,67 +22,85 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#ifndef esp32ModbusTCP_h
-#define esp32ModbusTCP_h
+#pragma once
+
+#include <Arduino.h>
 
 #include <functional>
+#include <list>
 
-#include <AsyncTCP.h>
-#include <IPAddress.h>
+#include <esp32-hal.h>  // for millis() and logging
+//#include <FreeRTOS.h>  // must appear before queue.h
+//#include <freertos/queue.h>
+#include <freertos/semphr.h>
 
-#include <esp32-hal-log.h>  // for millis()
-#include <freertos/queue.h>
+#include <AsyncTCP.h>  // also includes IPAddress.h
 
-#include "esp32ModbusTypeDefs.h"
-#include "ModbusMessage.h"
+#include "esp32ModbusTypedefs.h"
+#include "esp32ModbusMessage.h"
 
-#ifndef MB_NUMBER_QUEUE_ITEMS
-#define MB_NUMBER_QUEUE_ITEMS 20  // size of queue (items)
+#ifndef MODBUS_MAX_QUEUE_SIZE
+#define MODBUS_MAX_QUEUE_SIZE 20
 #endif
-#ifndef MB_IDLE_DICONNECT_TIME
-#define MB_IDLE_DICONNECT_TIME 60000  // msecs before an idle conenction will be closed
+#ifndef MODBUS_CONNECTION_MAX_IDLE_TIME
+#define MODBUS_CONNECTION_MAX_IDLE_TIME 10000
 #endif
 
 class esp32ModbusTCP {
+
+  typedef std::function<void(uint16_t packetId, uint8_t slaveAddress, esp32Modbus::FunctionCode fc, uint8_t* data, uint16_t len, void* arg)> OnDataHandler;
+  typedef std::function<void(uint16_t packetId, esp32Modbus::Error error, void* arg)> OnErrorHandler;
+
+  struct ModbusAction {
+    ModbusAction(ModbusRequest* req, ModbusResponse* resp, void* a):
+      request(req),
+      response(resp),
+      arg(a) {}
+    ModbusRequest* request;
+    ModbusResponse* response;
+    void* arg;
+  };
+
  public:
-  esp32ModbusTCP(uint8_t serverID, IPAddress addr, uint16_t port = 502);
+  esp32ModbusTCP(const uint8_t serverId, const IPAddress serverIP, const uint16_t port = 502);
   ~esp32ModbusTCP();
-  void onData(esp32Modbus::MBTCPOnData handler);
-  void onError(esp32Modbus::MBTCPOnError handler);
-  uint16_t readDiscreteInputs(uint16_t address, uint16_t numberInputs);
-  uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters);
-  uint16_t readInputRegisters(uint16_t address, uint16_t numberRegisters);
+  void onData(OnDataHandler handler);
+  void onError(OnErrorHandler handler);
+  bool connect();
+  bool disconnect(bool force = false);
+  uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters, void* arg = nullptr);
+  uint16_t writeHoldingRegister(uint16_t address, uint16_t data, void* arg = nullptr);
 
  private:
-  uint16_t _addToQueue(esp32ModbusTCPInternals::ModbusRequest* request);
-
-  AsyncClient _client;
+  uint16_t _addToQueue(ModbusRequest* request, void* arg);
+  void _tryToSend();
+  void _clearQueue(esp32Modbus::Error error);
+  void _tryError(uint16_t packetId, esp32Modbus::Error error, void* arg);
+  void _tryData(ModbusResponse& response, void* arg);
   void _connect();
   void _disconnect(bool now = false);
-  static void _onConnected(void* mb, AsyncClient* client);
-  static void _onDisconnected(void* mb, AsyncClient* client);
+  static void _onConnect(void* mb, AsyncClient* client);
+  static void _onDisconnect(void* mb, AsyncClient* client);
   static void _onError(void* mb, AsyncClient* client, int8_t error);
   static void _onTimeout(void* mb, AsyncClient* client, uint32_t time);
   static void _onData(void* mb, AsyncClient* client, void* data, size_t length);
   static void _onPoll(void* mb, AsyncClient* client);
-  void _processQueue();
-  void _tryError(esp32Modbus::Error error);
-  void _tryData(esp32ModbusTCPInternals::ModbusResponse* response);
-  void _next();
-  uint32_t _lastMillis;
+
+  AsyncClient _client;
+  const uint8_t _serverID;
+  const IPAddress _serverIP;
+  const uint16_t _port;
   enum {
-    NOTCONNECTED,
+    DISCONNECTED,
     CONNECTING,
     DISCONNECTING,
-    IDLE,
-    WAITING,
+    CONNECTED
   } _state;
-  const uint8_t _serverID;
-  const IPAddress _addr;
-  const uint16_t _port;
-  esp32Modbus::MBTCPOnData _onDataHandler;
-  esp32Modbus::MBTCPOnError _onErrorHandler;
-  QueueHandle_t _queue;
+  uint32_t _lastMillis;
+  SemaphoreHandle_t _semaphore;
+  std::list<ModbusAction> _toSend;
+  std::list<ModbusAction> _toReceive;
+  OnDataHandler _onDataHandler;
+  OnErrorHandler _onErrorHandler;
+  ModbusResponse* _currentResponse;
 };
-
-#endif
