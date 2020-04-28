@@ -240,7 +240,7 @@ esp32Modbus::FunctionCode ModbusResponse::getFunctionCode() const {
 }
 
 uint8_t* ModbusResponse::getData() const {
-  return &_buffer[6];
+  return &_buffer[9];
 }
 
 size_t ModbusResponse::getDataLength() const {
