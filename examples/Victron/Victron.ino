@@ -26,14 +26,21 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /*
 
-The modbus server (= SMA Sunny Boy) is defined as
-ModbusTCP sunnyboy(3, {192, 168, 123, 123}, 502);
+The modbus server (= Victron) can be defined as
+ModbusTCP victron(239, {192, 168, 123, 123}, 502);
 where:
-- 3 = device ID
+- 239 = device ID
 - {192, 168, 123, 13} = device IP address
 - 502 = port number
 
-All defined registers are holding registers, 2 word size (4 bytes)
+or
+
+ModbusTCP victron({192, 168, 123, 123}, 502);
+where:
+- {192, 168, 123, 13} = device IP address
+- 502 = port number
+
+and the query id's must be in registerData
 
 */
 
