@@ -91,7 +91,7 @@ class ModbusRequest06 : public ModbusRequest {
   size_t responseLength() const;
 };
 
-class ModbusResponse :public ModbusMessage {
+class ModbusResponse : public ModbusMessage {
  public:
   explicit ModbusResponse(uint16_t dataLength);
   bool isValid() const;

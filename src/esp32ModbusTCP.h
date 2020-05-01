@@ -24,19 +24,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-#include <Arduino.h>
-
 #include <functional>
 #include <list>
 
-#include <esp32-hal.h>  // for millis() and logging
-//#include <FreeRTOS.h>  // must appear before queue.h
-//#include <freertos/queue.h>
+#include <FreeRTOS.h>  // must appear before smphr.h
 #include <freertos/semphr.h>
+
+#include <esp32-hal.h>  // for millis() and logging
 
 #include <AsyncTCP.h>  // also includes IPAddress.h
 
-#include "esp32ModbusTypedefs.h"
+#include "esp32ModbusTypeDefs.h"
 #include "esp32ModbusMessage.h"
 
 #ifndef MODBUS_MAX_QUEUE_SIZE
@@ -52,12 +50,13 @@ class esp32ModbusTCP {
   typedef std::function<void(uint16_t packetId, esp32Modbus::Error error, void* arg)> OnErrorHandler;
 
   struct ModbusAction {
-    ModbusAction(ModbusRequest* req, ModbusResponse* resp, void* a):
+    ModbusAction(ModbusRequest* req, void* a):
       request(req),
-      response(resp),
       arg(a) {}
+    ~ModbusAction() {
+      delete request;
+    }
     ModbusRequest* request;
-    ModbusResponse* response;
     void* arg;
   };
 
