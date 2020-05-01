@@ -63,6 +63,7 @@ class esp32ModbusTCP {
 
  public:
   esp32ModbusTCP(const uint8_t serverId, const IPAddress serverIP, const uint16_t port = 502);
+  esp32ModbusTCP(const IPAddress serverIP, const uint16_t port = 502);
   ~esp32ModbusTCP();
   void onData(OnDataHandler handler);
   void onError(OnErrorHandler handler);
@@ -70,6 +71,8 @@ class esp32ModbusTCP {
   bool disconnect(bool force = false);
   uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters, void* arg = nullptr);
   uint16_t writeHoldingRegister(uint16_t address, uint16_t data, void* arg = nullptr);
+  uint16_t readHoldingRegisters(uint8_t serverId, uint16_t address, uint16_t numberRegisters, void* arg = nullptr);
+  uint16_t writeHoldingRegister(uint8_t serverId, uint16_t address, uint16_t data, void* arg = nullptr);
 
  private:
   uint16_t _addToQueue(ModbusRequest* request, void* arg);

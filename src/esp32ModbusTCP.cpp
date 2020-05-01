@@ -49,6 +49,33 @@ esp32ModbusTCP::esp32ModbusTCP(const uint8_t serverId, const IPAddress serverIP,
     _semaphore = xSemaphoreCreateBinary();
     xSemaphoreGive(_semaphore);
 }
+
+esp32ModbusTCP::esp32ModbusTCP(const IPAddress serverIP, const uint16_t port):
+  _client(),
+  _serverID(0),
+  _serverIP(serverIP),
+  _port(port),
+  _state(DISCONNECTED),
+  _lastMillis(0),
+  _semaphore(nullptr),
+  _toSend(),
+  _toReceive(),
+  _onDataHandler(nullptr),
+  _onErrorHandler(nullptr),
+  _currentResponse(nullptr) {
+    _client.onConnect(_onConnect, this);
+    _client.onDisconnect(_onDisconnect, this);
+    _client.onError(_onError, this);
+    _client.onTimeout(_onTimeout, this);
+    _client.onPoll(_onPoll, this);
+    _client.onData(_onData, this);
+    _client.setNoDelay(true);
+    _client.setAckTimeout(5000);
+    _client.setRxTimeout(5000);
+    _semaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(_semaphore);
+}
+
 esp32ModbusTCP::~esp32ModbusTCP() {
   _toSend.clear();
   _toReceive.clear();
@@ -100,6 +127,18 @@ uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberR
 
 uint16_t esp32ModbusTCP::writeHoldingRegister(uint16_t address, uint16_t data, void* arg) {
   ModbusRequest* request = new ModbusRequest06(_serverID, address, data);
+  if (request) return _addToQueue(request, arg);
+  return 0;
+}
+
+uint16_t esp32ModbusTCP::readHoldingRegisters(uint8_t serverId, uint16_t address, uint16_t numberRegisters, void* arg) {
+  ModbusRequest* request = new ModbusRequest03(serverId, address, numberRegisters);
+  if (request) return _addToQueue(request, arg);
+  return 0;
+}
+
+uint16_t esp32ModbusTCP::writeHoldingRegister(uint8_t serverId, uint16_t address, uint16_t data, void* arg) {
+  ModbusRequest* request = new ModbusRequest06(serverId, address, data);
   if (request) return _addToQueue(request, arg);
   return 0;
 }
