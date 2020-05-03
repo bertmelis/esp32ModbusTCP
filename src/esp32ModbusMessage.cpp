@@ -209,7 +209,8 @@ bool ModbusResponse::isValid() const {
   if (_buffer[2] != 0 || _buffer[3] != 0) return false;  // protocol ID
   if (_dataLength != make_word(_buffer[4], _buffer[5])) return false;
   if (_dataLength > 256) return false;
-  else return true;
+  else
+    return true;
 }
 
 bool ModbusResponse::match(const ModbusRequest& request) const {

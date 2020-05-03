@@ -45,7 +45,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 class esp32ModbusTCP {
-
   typedef std::function<void(uint16_t packetId, uint8_t slaveAddress, esp32Modbus::FunctionCode fc, uint8_t* data, uint16_t len, void* arg)> OnDataHandler;
   typedef std::function<void(uint16_t packetId, esp32Modbus::Error error, void* arg)> OnErrorHandler;
 
@@ -75,7 +74,7 @@ class esp32ModbusTCP {
   void _tryToSend();
   void _clearQueue(esp32Modbus::Error error);
   void _tryError(uint16_t packetId, esp32Modbus::Error error, void* arg);
-  void _tryData(ModbusResponse& response, void* arg);
+  void _tryData(const ModbusResponse& response, void* arg);
   void _connect();
   void _disconnect(bool now = false);
   static void _onConnect(void* mb, AsyncClient* client);

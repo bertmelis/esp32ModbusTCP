@@ -38,17 +38,13 @@ class ModbusMessage {
   bool isComplete() const;
 
  protected:
-  ModbusMessage(size_t totalLength);
+  explicit ModbusMessage(size_t totalLength);
   uint8_t* _buffer;
   size_t _totalLength;
   size_t _index;
 };
 
-//class ModbusResponse;  // forward declare for use in ModbusRequest
-
 class ModbusRequest : public ModbusMessage {
-//  friend class ModbusResponse;
-
  public:
   uint16_t getId() const;
   virtual size_t responseLength() const = 0;

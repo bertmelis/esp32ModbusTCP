@@ -150,11 +150,11 @@ void esp32ModbusTCP::_tryToSend() {
 
 void esp32ModbusTCP::_clearQueue(esp32Modbus::Error error) {
   if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
-    while(!_toSend.empty()) {
+    while (!_toSend.empty()) {
       _tryError(_toSend.front().request->getId(), error, _toSend.front().arg);
       _toSend.pop_front();
     }
-    while(!_toReceive.empty()) {
+    while (!_toReceive.empty()) {
       _tryError(_toSend.front().request->getId(), error, _toReceive.front().arg);
       _toReceive.pop_front();
     }
@@ -169,7 +169,7 @@ void esp32ModbusTCP::_tryError(uint16_t packetId, esp32Modbus::Error error, void
   if (_onErrorHandler) _onErrorHandler(packetId, error, arg);
 }
 
-void esp32ModbusTCP::_tryData(ModbusResponse& response, void* arg) {
+void esp32ModbusTCP::_tryData(const ModbusResponse& response, void* arg) {
   if (_onDataHandler) {
     _onDataHandler(response.getId(),
                    response.getSlaveAddress(),
@@ -207,7 +207,6 @@ void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
     log_e("couldn't obtain semaphore");
     return;
   }
-
 }
 
 void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
