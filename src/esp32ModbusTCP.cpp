@@ -190,7 +190,6 @@ void esp32ModbusTCP::_onConnect(void* mb, AsyncClient* client) {
     log_e("couldn't obtain semaphore");
     return;
   }
-
 }
 
 void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
