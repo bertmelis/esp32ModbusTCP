@@ -27,6 +27,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdint.h>  // for uint*_t
 #include <stddef.h>  // for size_t
 
+#include <FreeRTOS.h>  // must appear before smphr.h
+#include <freertos/semphr.h>
+#include <esp32-hal-log.h>
+
 #include "esp32ModbusTypeDefs.h"
 
 class ModbusMessage {
@@ -46,11 +50,14 @@ class ModbusMessage {
 
 class ModbusRequest : public ModbusMessage {
  public:
+  virtual ~ModbusRequest();
   uint16_t getId() const;
   virtual size_t responseLength() const = 0;
 
  protected:
   explicit ModbusRequest(size_t totalLength);
+
+  static SemaphoreHandle_t _semaphore;
   static uint16_t _lastPacketId;
   uint16_t _packetId;
   uint8_t _slaveAddress;

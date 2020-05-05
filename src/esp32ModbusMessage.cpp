@@ -85,6 +85,8 @@ ModbusMessage::ModbusMessage(size_t totalLength) :
     _buffer = new uint8_t[_totalLength];
   }
 
+SemaphoreHandle_t ModbusRequest::_semaphore = xSemaphoreCreateBinary();
+
 uint16_t ModbusRequest::_lastPacketId = 0;
 
 uint16_t ModbusRequest::getId() const {
@@ -98,9 +100,18 @@ ModbusRequest::ModbusRequest(size_t totalLength) :
   _functionCode(0),
   _address(0),
   _byteCount(0) {
-    _packetId = ++_lastPacketId;
-    if (_lastPacketId == 0) _lastPacketId = 1;
+    if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
+      _packetId = ++_lastPacketId;
+      if (_lastPacketId == 0) _lastPacketId = 1;
+      xSemaphoreGive(_semaphore);
+    } else {
+      log_e("couldn't obtain semaphore");
+    }
   }
+
+ModbusRequest::~ModbusRequest() {
+  vSemaphoreDelete(_semaphore);
+}
 
 ModbusRequest02::ModbusRequest02(uint8_t slaveAddress, uint16_t address, uint16_t numberCoils) :
   ModbusRequest(12) {
