@@ -23,7 +23,6 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-
 /*
 
 The modbus server (= Victron) can be defined as
@@ -43,7 +42,6 @@ where:
 and the query id's must be in registerData
 
 */
-
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -79,7 +77,7 @@ enum valueType
     S32FIX0,  // 32 bits signed, no decimals
     S32FIX1,  // 32 bits signed, 1 decimals
     S32FIX2,  // 32 bits signed, 2 decimals
-    S32FIX3,  // 32 bits signed, 3 decimals    
+    S32FIX3,  // 32 bits signed, 3 decimals
 };
 
 struct registerData
@@ -93,7 +91,7 @@ struct registerData
 
 registerData victronRegisters[] = {
     "Frecuency", 239, 9, 1, S16FIX2,
-    "GRID", 239, 12, 1, S16FIX10,
+    "Grid", 239, 12, 1, S16FIX10,
     "DC voltage", 239, 26, 1, U16FIX2,
     "DC current", 239, 27, 1, S16FIX1,
     "Battery Temperature", 239, 61, 1, S16FIX1,

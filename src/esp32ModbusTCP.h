@@ -24,19 +24,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-#include <Arduino.h>
-
 #include <functional>
 #include <list>
 
-#include <esp32-hal.h>  // for millis() and logging
-//#include <FreeRTOS.h>  // must appear before queue.h
-//#include <freertos/queue.h>
+#include <FreeRTOS.h>  // must appear before smphr.h
 #include <freertos/semphr.h>
+
+#include <esp32-hal.h>  // for millis() and logging
 
 #include <AsyncTCP.h>  // also includes IPAddress.h
 
-#include "esp32ModbusTypedefs.h"
+#include "esp32ModbusTypeDefs.h"
 #include "esp32ModbusMessage.h"
 
 #ifndef MODBUS_MAX_QUEUE_SIZE
@@ -47,17 +45,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 class esp32ModbusTCP {
-
   typedef std::function<void(uint16_t packetId, uint8_t slaveAddress, esp32Modbus::FunctionCode fc, uint8_t* data, uint16_t len, void* arg)> OnDataHandler;
   typedef std::function<void(uint16_t packetId, esp32Modbus::Error error, void* arg)> OnErrorHandler;
 
   struct ModbusAction {
-    ModbusAction(ModbusRequest* req, ModbusResponse* resp, void* a):
+    ModbusAction(ModbusRequest* req, void* a):
       request(req),
-      response(resp),
       arg(a) {}
+    ~ModbusAction() {
+      delete request;
+    }
     ModbusRequest* request;
-    ModbusResponse* response;
     void* arg;
   };
 
@@ -79,7 +77,7 @@ class esp32ModbusTCP {
   void _tryToSend();
   void _clearQueue(esp32Modbus::Error error);
   void _tryError(uint16_t packetId, esp32Modbus::Error error, void* arg);
-  void _tryData(ModbusResponse& response, void* arg);
+  void _tryData(const ModbusResponse& response, void* arg);
   void _connect();
   void _disconnect(bool now = false);
   static void _onConnect(void* mb, AsyncClient* client);

@@ -27,6 +27,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdint.h>  // for uint*_t
 #include <stddef.h>  // for size_t
 
+#include <FreeRTOS.h>  // must appear before smphr.h
+#include <freertos/semphr.h>
+#include <esp32-hal-log.h>
+
 #include "esp32ModbusTypeDefs.h"
 
 class ModbusMessage {
@@ -38,23 +42,22 @@ class ModbusMessage {
   bool isComplete() const;
 
  protected:
-  ModbusMessage(size_t totalLength);
+  explicit ModbusMessage(size_t totalLength);
   uint8_t* _buffer;
   size_t _totalLength;
   size_t _index;
 };
 
-//class ModbusResponse;  // forward declare for use in ModbusRequest
-
 class ModbusRequest : public ModbusMessage {
-//  friend class ModbusResponse;
-
  public:
+  virtual ~ModbusRequest();
   uint16_t getId() const;
   virtual size_t responseLength() const = 0;
 
  protected:
   explicit ModbusRequest(size_t totalLength);
+
+  static SemaphoreHandle_t _semaphore;
   static uint16_t _lastPacketId;
   uint16_t _packetId;
   uint8_t _slaveAddress;
@@ -91,7 +94,7 @@ class ModbusRequest06 : public ModbusRequest {
   size_t responseLength() const;
 };
 
-class ModbusResponse :public ModbusMessage {
+class ModbusResponse : public ModbusMessage {
  public:
   explicit ModbusResponse(uint16_t dataLength);
   bool isValid() const;

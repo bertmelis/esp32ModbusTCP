@@ -150,7 +150,7 @@ uint16_t esp32ModbusTCP::_addToQueue(ModbusRequest* request, void* arg) {
       xSemaphoreGive(_semaphore);
       return 0;
     }
-    _toSend.emplace_back(request, nullptr, arg);
+    _toSend.emplace_back(request, arg);
     xSemaphoreGive(_semaphore);
     if (_state == DISCONNECTED) {
       connect();
@@ -189,11 +189,11 @@ void esp32ModbusTCP::_tryToSend() {
 
 void esp32ModbusTCP::_clearQueue(esp32Modbus::Error error) {
   if (xSemaphoreTake(_semaphore, 1000) == pdTRUE) {
-    while(!_toSend.empty()) {
+    while (!_toSend.empty()) {
       _tryError(_toSend.front().request->getId(), error, _toSend.front().arg);
       _toSend.pop_front();
     }
-    while(!_toReceive.empty()) {
+    while (!_toReceive.empty()) {
       _tryError(_toSend.front().request->getId(), error, _toReceive.front().arg);
       _toReceive.pop_front();
     }
@@ -208,7 +208,7 @@ void esp32ModbusTCP::_tryError(uint16_t packetId, esp32Modbus::Error error, void
   if (_onErrorHandler) _onErrorHandler(packetId, error, arg);
 }
 
-void esp32ModbusTCP::_tryData(ModbusResponse& response, void* arg) {
+void esp32ModbusTCP::_tryData(const ModbusResponse& response, void* arg) {
   if (_onDataHandler) {
     _onDataHandler(response.getId(),
                    response.getSlaveAddress(),
@@ -229,7 +229,6 @@ void esp32ModbusTCP::_onConnect(void* mb, AsyncClient* client) {
     log_e("couldn't obtain semaphore");
     return;
   }
-
 }
 
 void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
@@ -246,7 +245,6 @@ void esp32ModbusTCP::_onDisconnect(void* mb, AsyncClient* client) {
     log_e("couldn't obtain semaphore");
     return;
   }
-
 }
 
 void esp32ModbusTCP::_onError(void* mb, AsyncClient* client, int8_t error) {
@@ -294,9 +292,8 @@ void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t l
             } else {
               c->_tryError(c->_currentResponse->getId(), c->_currentResponse->getError(), it->arg);
             }
-            delete it->request;
-            delete it->response;
             c->_toReceive.erase(it);
+            delete c->_currentResponse;
             c->_currentResponse = nullptr;
             break;
           }
@@ -305,6 +302,7 @@ void esp32ModbusTCP::_onData(void* mb, AsyncClient* client, void* data, size_t l
     } else {
       log_e("Invalid packet received");
       _onError(c, nullptr, 0);
+      delete c->_currentResponse;
     }
   } while (i < length);
 
