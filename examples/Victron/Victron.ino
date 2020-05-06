@@ -108,11 +108,11 @@ float parseUnsigned16(uint8_t *data, int precision)
 
     switch (precision)
     {
-        case 0: { return (float)value; break; }
-        case 1: { return ((float)value / 10.0); break; }
-        case 2: { return ((float)value / 100.0); break; }
-        case 3: { return ((float)value / 1000.0); break; }
-        case 10: { return ((float)value * 10.0); break; }
+      case 0: { return (float)value; break; }
+      case 1: { return ((float)value / 10.0); break; }
+      case 2: { return ((float)value / 100.0); break; }
+      case 3: { return ((float)value / 1000.0); break; }
+      case 10: { return ((float)value * 10.0); break; }
     }
     return 0;
 }
@@ -124,10 +124,10 @@ float parseUnsigned32(uint8_t *data, int precision)
 
     switch (precision)
     {
-        case 0: { return (float)value; break; }
-        case 1: { return ((float)value / 10.0); break; }
-        case 2: { return ((float)value / 100.0); break; }
-        case 3: { return ((float)value / 1000.0); break; }
+      case 0: { return (float)value; break; }
+      case 1: { return ((float)value / 10.0); break; }
+      case 2: { return ((float)value / 100.0); break; }
+      case 3: { return ((float)value / 1000.0); break; }
     }
     return 0;
 }
@@ -143,10 +143,10 @@ float parseUnsigned64(uint8_t *data, int precision)
 
     switch (precision)
     {
-        case 0: { return (float)value; break; }
-        case 1: { return ((float)value / 10.0); break; }
-        case 2: { return ((float)value / 100.0); break; }
-        case 3: { return ((float)value / 1000.0); break; }
+      case 0: { return (float)value; break; }
+      case 1: { return ((float)value / 10.0); break; }
+      case 2: { return ((float)value / 100.0); break; }
+      case 3: { return ((float)value / 1000.0); break; }
     }
     return 0;
 }
@@ -158,11 +158,11 @@ float parseSigned16(uint8_t *data, int precision)
 
     switch (precision)
     {
-        case 0: { return (float)value; break; }
-        case 1: { return ((float)value / 10.0); break; }
-        case 2: { return ((float)value / 100.0); break; }
-        case 3: { return ((float)value / 1000.0); break; }
-        case 10: { return ((float)value * 10.0); break; }
+      case 0: { return (float)value; break; }
+      case 1: { return ((float)value / 10.0); break; }
+      case 2: { return ((float)value / 100.0); break; }
+      case 3: { return ((float)value / 1000.0); break; }
+      case 10: { return ((float)value * 10.0); break; }
     }
     return 0;
 }
@@ -174,10 +174,10 @@ float parseSigned32(uint8_t *data, int precision)
 
     switch (precision)
     {
-        case 0: { return (float)value; break; }
-        case 1: { return ((float)value / 10.0); break; }
-        case 2: { return ((float)value / 100.0); break; }
-        case 3: { return ((float)value / 1000.0); break; }
+      case 0: { return (float)value; break; }
+      case 1: { return ((float)value / 10.0); break; }
+      case 2: { return ((float)value / 100.0); break; }
+      case 3: { return ((float)value / 1000.0); break; }
     }
     return 0;
 }
@@ -188,34 +188,34 @@ void setup() {
     WiFi.disconnect(true);  // delete old config
     
     victron.onData([](uint16_t packet, uint8_t slave, esp32Modbus::FunctionCode fc , uint8_t* data , uint16_t len, void* arg) {
-        registerData* a = reinterpret_cast<registerData*>(arg);
-        switch (a->type)
-        {
-            case ENUM:
-		        case U16FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 0)); break; }
-		        case U16FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 1)); break; }
-		        case U16FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 2)); break; }
-		        case U16FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 3)); break; }
-		        case U16FIX10: { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 10)); break; }
-		        case U32FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 0)); break; }
-		        case U32FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 1)); break; }
-		        case U32FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 2)); break; }
-		        case U32FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 3)); break; }
-		        case U64FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 0)); break; }
-		        case U64FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 1)); break; }
-		        case U64FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 2)); break; }
-		        case U64FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 3)); break; }
-		        case S16FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 0)); break; }
-		        case S16FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 1)); break; }
-		        case S16FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 2)); break; }
-		        case S16FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 3)); break; }
-		        case S16FIX10: { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 10)); break; }
-		        case S32FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 0)); break; }
-		        case S32FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 1)); break; }
-		        case S32FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 2)); break; }
-		        case S32FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 3)); break; }
-        }
-        return;
+      registerData* a = reinterpret_cast<registerData*>(arg);
+      switch (a->type)
+      {
+        case ENUM:
+        case U16FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 0)); break; }
+        case U16FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 1)); break; }
+        case U16FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 2)); break; }
+        case U16FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 3)); break; }
+        case U16FIX10: { Serial.printf("%s: %.2f\n", a->name, parseUnsigned16(data, 10)); break; }
+        case U32FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 0)); break; }
+        case U32FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 1)); break; }
+        case U32FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 2)); break; }
+        case U32FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned32(data, 3)); break; }
+        case U64FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 0)); break; }
+        case U64FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 1)); break; }
+        case U64FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 2)); break; }
+        case U64FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseUnsigned64(data, 3)); break; }
+        case S16FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 0)); break; }
+        case S16FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 1)); break; }
+        case S16FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 2)); break; }
+        case S16FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 3)); break; }
+        case S16FIX10: { Serial.printf("%s: %.2f\n", a->name, parseSigned16(data, 10)); break; }
+        case S32FIX0:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 0)); break; }
+        case S32FIX1:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 1)); break; }
+        case S32FIX2:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 2)); break; }
+        case S32FIX3:  { Serial.printf("%s: %.2f\n", a->name, parseSigned32(data, 3)); break; }
+      }
+      return;
     });
     victron.onError([](uint16_t packet, esp32Modbus::Error e, void* arg) {
       registerData* a = reinterpret_cast<registerData*>(arg);
@@ -231,10 +231,10 @@ void setup() {
     }, WiFiEvent_t::SYSTEM_EVENT_STA_GOT_IP);
     
     WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
-        Serial.print("WiFi lost connection. Reason: ");
-        Serial.println(info.disconnected.reason);
-        WiFi.begin(ssid, pass);
-        WiFiConnected = false;
+      Serial.print("WiFi lost connection. Reason: ");
+      Serial.println(info.disconnected.reason);
+      WiFi.begin(ssid, pass);
+      WiFiConnected = false;
     }, WiFiEvent_t::SYSTEM_EVENT_STA_DISCONNECTED);
 
     WiFi.begin(ssid, pass);
@@ -249,11 +249,11 @@ void loop() {
     lastMillis = millis();
     Serial.print("reading registers:\n");
     for (uint8_t i = 0; i < numberVictronRegisters; ++i) {
-	    if (victron.readHoldingRegisters(victronRegisters[i].serverID, victronRegisters[i].address, victronRegisters[i].length, &(victronRegisters[i])) > 0) {
-	        Serial.printf("  requested %d\n", victronRegisters[i].address);
-	    } else {
-	        Serial.printf("  error requesting address %d\n", victronRegisters[i].address);
-	    }
+      if (victron.readHoldingRegisters(victronRegisters[i].serverID, victronRegisters[i].address, victronRegisters[i].length, &(victronRegisters[i])) > 0) {
+        Serial.printf("  requested %d\n", victronRegisters[i].address);
+      } else {
+        Serial.printf("  error requesting address %d\n", victronRegisters[i].address);
+      }
     }
   }
 }

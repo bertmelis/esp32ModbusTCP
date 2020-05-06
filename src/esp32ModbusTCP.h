@@ -61,7 +61,7 @@ class esp32ModbusTCP {
 
  public:
   esp32ModbusTCP(const uint8_t serverId, const IPAddress serverIP, const uint16_t port = 502);
-  esp32ModbusTCP(const IPAddress serverIP, const uint16_t port = 502);
+  explicit esp32ModbusTCP(const IPAddress serverIP, const uint16_t port = 502);
   ~esp32ModbusTCP();
   void onData(OnDataHandler handler);
   void onError(OnErrorHandler handler);
