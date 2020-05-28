@@ -67,9 +67,11 @@ class esp32ModbusTCP {
   void onError(OnErrorHandler handler);
   bool connect();
   bool disconnect(bool force = false);
+  
   uint16_t readHoldingRegisters(uint16_t address, uint16_t numberRegisters, void* arg = nullptr);
-  uint16_t writeHoldingRegister(uint16_t address, uint16_t data, void* arg = nullptr);
   uint16_t readHoldingRegisters(uint8_t serverId, uint16_t address, uint16_t numberRegisters, void* arg = nullptr);
+
+  uint16_t writeHoldingRegister(uint16_t address, uint16_t data, void* arg = nullptr);
   uint16_t writeHoldingRegister(uint8_t serverId, uint16_t address, uint16_t data, void* arg = nullptr);
 
  private:

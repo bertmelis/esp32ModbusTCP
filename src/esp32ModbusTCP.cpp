@@ -120,21 +120,17 @@ bool esp32ModbusTCP::disconnect(bool force) {
 }
 
 uint16_t esp32ModbusTCP::readHoldingRegisters(uint16_t address, uint16_t numberRegisters, void* arg) {
-  ModbusRequest* request = new ModbusRequest03(_serverID, address, numberRegisters);
-  if (request) return _addToQueue(request, arg);
-  return 0;
-}
-
-uint16_t esp32ModbusTCP::writeHoldingRegister(uint16_t address, uint16_t data, void* arg) {
-  ModbusRequest* request = new ModbusRequest06(_serverID, address, data);
-  if (request) return _addToQueue(request, arg);
-  return 0;
+  return readHoldingRegisters(_serverID, address, numberRegisters, arg);
 }
 
 uint16_t esp32ModbusTCP::readHoldingRegisters(uint8_t serverId, uint16_t address, uint16_t numberRegisters, void* arg) {
   ModbusRequest* request = new ModbusRequest03(serverId, address, numberRegisters);
   if (request) return _addToQueue(request, arg);
   return 0;
+}
+
+uint16_t esp32ModbusTCP::writeHoldingRegister(uint16_t address, uint16_t data, void* arg) {
+  return writeHoldingRegister(_serverID, address, data, arg);
 }
 
 uint16_t esp32ModbusTCP::writeHoldingRegister(uint8_t serverId, uint16_t address, uint16_t data, void* arg) {
