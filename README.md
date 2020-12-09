@@ -1,6 +1,10 @@
-# esp32ModbusTCP
+# ARCHIVED
 
-[![Build Status](https://travis-ci.com/bertmelis/esp32ModbusTCP.svg?branch=master)](https://travis-ci.com/bertmelis/esp32ModbusTCP)
+This repo is archived no longer maintained.
+
+For a complete Modbus library for ESP32, I invite you to https://github.com/ESP32ModbusUnified/eModbus
+
+# esp32ModbusTCP
 
 This is a async Modbus client (master) for ESP32.
 
