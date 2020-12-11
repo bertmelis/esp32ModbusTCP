@@ -2,7 +2,7 @@
 
 This repo is archived no longer maintained.
 
-For a complete Modbus library for ESP32, I invite you to https://github.com/ESP32ModbusUnified/eModbus
+For a complete Modbus library for ESP32, I invite you to https://github.com/eModbus/eModbus
 
 # esp32ModbusTCP
 
